@@ -30,6 +30,9 @@ class BaseModemWorker(ABC):
         self.service = None
         self.status = "FREE"
 
+    def deliver_voice(self, wav_path: str):
+        """Chamado pelo AGI do Asterisk após gravar a chamada entrante."""
+
     @abstractmethod
     def start(self):
         """Inicia o worker (conecta ao hardware, registra callbacks)."""

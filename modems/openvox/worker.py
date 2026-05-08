@@ -44,10 +44,12 @@ class OpenVoxWorker(BaseModemWorker):
     def deliver_voice(self, wav_path: str):
         if not self.activation_id:
             return
+        import db.repository as repo
         from otp.whisper_engine import transcribe
         from otp.extractor import extract_from_text
         text = transcribe(wav_path)
         code = extract_from_text(text)
+        repo.log_voz(self.modem_id, self.activation_id, text, code, duracao=0)
         if code:
             print(f"[OpenVox {self.modem_id}] Voz OTP: {code}")
             self.on_otp(self.activation_id, code, "VOZ")

@@ -72,7 +72,7 @@ class E303Worker(BaseModemWorker):
         import db.repository as repo
 
         repo.upsert_modem(self.modem_id, self.number, "e303",
-                          None, None, suporta_voz=False)
+                          None, None, suporta_voz=True)
 
         # Ativa medição de sinal periódica (a cada 5s)
         subprocess.run(["mmcli", "-m", str(self.mm_index), "--signal-setup=5"],
@@ -112,6 +112,22 @@ class E303Worker(BaseModemWorker):
             except Exception as e:
                 print(f"[E303 {self.modem_id}] poll erro: {e}")
             time.sleep(_POLL_INTERVAL)
+
+    # ── Voz (Asterisk / chan_dongle) ──────────────────────────
+
+    def deliver_voice(self, wav_path: str):
+        if not self.activation_id:
+            return
+        import db.repository as repo
+        from otp.whisper_engine import transcribe
+        from otp.extractor import extract_from_text
+        text = transcribe(wav_path)
+        code = extract_from_text(text)
+        repo.log_voz(self.modem_id, self.activation_id, text, code,
+                     duracao=0)
+        if code:
+            print(f"[E303 {self.modem_id}] Voz OTP: {code}")
+            self.on_otp(self.activation_id, code, "VOZ")
 
     # ── SMS ──────────────────────────────────────────────────
 

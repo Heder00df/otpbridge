@@ -43,10 +43,12 @@ class GoIPWorker(BaseModemWorker):
         """Chamado pelo AGI do Asterisk após gravar e converter a chamada."""
         if not self.activation_id:
             return
+        import db.repository as repo
         from otp.whisper_engine import transcribe
         from otp.extractor import extract_from_text
         text = transcribe(wav_path)
         code = extract_from_text(text)
+        repo.log_voz(self.modem_id, self.activation_id, text, code, duracao=0)
         if code:
             print(f"[GoIP {self.modem_id}] Voz OTP: {code}")
             self.on_otp(self.activation_id, code, "VOZ")

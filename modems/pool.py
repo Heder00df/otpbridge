@@ -79,6 +79,13 @@ class ModemPool:
                     repo.log_evento(status_label, w.modem_id, activation_id)
                     return
 
+    def find_by_number(self, number: str) -> Optional[BaseModemWorker]:
+        with self.lock:
+            for w in self.modems.values():
+                if w.number == number:
+                    return w
+        return None
+
     def find_by_line(self, hardware: str, line: int) -> Optional[BaseModemWorker]:
         with self.lock:
             for w in self.modems.values():

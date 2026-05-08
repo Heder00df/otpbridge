@@ -12,6 +12,10 @@ from modems.openvox.webhook import openvox_router
 app.include_router(goip_router)
 app.include_router(openvox_router)
 
+# Endpoint interno usado pelo AGI do Asterisk
+from api.internal import router as internal_router
+app.include_router(internal_router)
+
 pool = None
 
 @app.on_event("startup")
