@@ -94,8 +94,8 @@ sudo cp asterisk/extensions.conf /etc/asterisk/otpbridge_extensions.conf
 ### 5. Instalar o AGI script
 
 ```bash
-sudo cp modems/asterisk_agi.py /var/lib/asterisk/agi-bin/otpbridge_agi.py
-sudo chmod +x /var/lib/asterisk/agi-bin/otpbridge_agi.py
+sudo cp modems/asterisk_agi.py /usr/share/asterisk/agi-bin/otpbridge_agi.py
+sudo chmod +x /usr/share/asterisk/agi-bin/otpbridge_agi.py
 ```
 
 ### 6. Recarregar o Asterisk
