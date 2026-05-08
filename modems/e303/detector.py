@@ -1,12 +1,23 @@
 import re
 import subprocess
+import threading
+
+# Códigos USSD por operadora para consulta do número real
+_USSD_CODES = [
+    ("TIM",   "*846#"),
+    ("Claro", "*544#"),
+    ("Oi",    "*461#"),
+]
+
+_USSD_TIMEOUT = 20  # segundos por consulta
 
 
 def detect_modems() -> list[tuple[int, str]]:
     """
     Retorna lista de (mm_index, number) para todos os modems detectados
     pelo ModemManager. Prioriza número salvo no banco (corrigido manualmente)
-    sobre o CNUM do SIM, que pode estar errado em chips M2M.
+    sobre o USSD das operadoras, que por sua vez tem prioridade sobre o CNUM
+    do SIM (pode estar errado em chips M2M).
     """
     db_numbers = _load_db_numbers()
 
@@ -42,8 +53,12 @@ def _load_db_numbers() -> dict:
 
 
 def _get_number_from_sim(mm_index: int) -> str:
-    # Tenta USSD *846# (TIM/roaming) — retorna número real da rede
-    number = _ussd_number(mm_index)
+    """
+    Tenta descobrir o número real na ordem:
+      1. USSD de cada operadora em paralelo (TIM, Claro, Oi)
+      2. CNUM do SIM como último recurso
+    """
+    number = _ussd_number_all(mm_index)
     if number:
         return number
 
@@ -53,22 +68,51 @@ def _get_number_from_sim(mm_index: int) -> str:
         if "own:" in line:
             num = line.split("own:")[-1].strip().lstrip("+")
             if num:
+                print(f"[Detector] MM:{mm_index} CNUM={num} (pode estar errado em M2M)")
                 return num
     return f"unknown-{mm_index}"
 
 
-def _ussd_number(mm_index: int) -> str:
-    """Consulta número real via USSD *846# (TIM). Retorna vazio se falhar."""
+def _ussd_number_all(mm_index: int) -> str:
+    """
+    Dispara USSD de todas as operadoras em paralelo.
+    Retorna o primeiro número válido que chegar.
+    """
+    result = {"number": ""}
+    found = threading.Event()
+    lock = threading.Lock()
+
+    def query(operadora: str, codigo: str):
+        num = _ussd_query(mm_index, codigo)
+        if num and not found.is_set():
+            with lock:
+                if not found.is_set():
+                    result["number"] = num
+                    found.set()
+                    print(f"[Detector] MM:{mm_index} número via USSD {codigo} ({operadora}): {num}")
+
+    threads = [
+        threading.Thread(target=query, args=(op, cod), daemon=True)
+        for op, cod in _USSD_CODES
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=_USSD_TIMEOUT + 2)
+
+    return result["number"]
+
+
+def _ussd_query(mm_index: int, codigo: str) -> str:
+    """Executa um USSD e extrai o número da resposta. Retorna vazio se falhar."""
     try:
         r = subprocess.run(
-            ["mmcli", "-m", str(mm_index), "--3gpp-ussd-initiate=*846#"],
-            capture_output=True, text=True, timeout=20,
+            ["mmcli", "-m", str(mm_index), f"--3gpp-ussd-initiate={codigo}"],
+            capture_output=True, text=True, timeout=_USSD_TIMEOUT,
         )
-        # Resposta: "Telefone [16988130896] nao Autorizado"
         m = re.search(r"\[(\d{8,13})\]", r.stdout)
         if m:
             num = m.group(1)
-            # Garante prefixo 55 (Brasil)
             if not num.startswith("55"):
                 num = "55" + num
             return num
