@@ -17,3 +17,19 @@ async def receive_voice(body: VoiceDelivery, request: Request):
         raise HTTPException(status_code=404, detail=f"modem {body.modem_number} não encontrado")
     worker.deliver_voice(body.wav_path)
     return {"ok": True}
+
+
+class SmsDelivery(BaseModel):
+    dongle_name: str
+    from_number: str
+    text: str
+
+
+@router.post("/internal/sms")
+async def receive_sms(body: SmsDelivery, request: Request):
+    pool = request.app.state.modem_pool
+    worker = pool.find_by_dongle(body.dongle_name)
+    if not worker:
+        raise HTTPException(status_code=404, detail=f"dongle {body.dongle_name} não encontrado")
+    worker.deliver_sms(body.text)
+    return {"ok": True}

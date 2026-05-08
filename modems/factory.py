@@ -32,16 +32,12 @@ def create_workers(hardware_type: str, devices: list, on_otp: Callable) -> list[
     workers = []
 
     if hardware_type == "e303":
-        from modems.e303.detector import detect_modems
         from modems.e303.worker import E303Worker
-        found = detect_modems() if not devices else [
-            (d["mm_index"], d.get("number", "unknown")) for d in devices
-        ]
-        for i, (mm_index, number) in enumerate(found):
+        for i, d in enumerate(devices):
             workers.append(E303Worker(
                 modem_id=i + 1,
-                mm_index=mm_index,
-                number=number,
+                dongle_name=d["dongle_name"],
+                number=d.get("number", "unknown"),
                 on_otp=on_otp,
             ))
 

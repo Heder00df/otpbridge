@@ -6,11 +6,13 @@ from api.supplier import router as supplier_router
 app = FastAPI(title="OTPBridge Supplier API")
 app.include_router(supplier_router)
 
-# Webhooks de hardware de rede (GoIP / OpenVox)
+# Webhooks de hardware
 from modems.goip.webhook import goip_router
 from modems.openvox.webhook import openvox_router
+from modems.e303.webhook import e303_router
 app.include_router(goip_router)
 app.include_router(openvox_router)
+app.include_router(e303_router)
 
 # Endpoint interno usado pelo AGI do Asterisk
 from api.internal import router as internal_router

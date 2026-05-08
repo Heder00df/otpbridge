@@ -32,11 +32,9 @@ class ModemPool:
                 modem_id=w.modem_id,
                 numero=w.number,
                 hardware=HARDWARE_TYPE,
-                porta_usb=getattr(w, "port_at", None) or (
-                    f"MM:{w.mm_index}" if hasattr(w, "mm_index") else None
-                ),
+                porta_usb=getattr(w, "dongle_name", None) or getattr(w, "port_at", None),
                 porta_audio=getattr(w, "port_audio", None),
-                suporta_voz=False,
+                suporta_voz=getattr(w, "dongle_name", None) is not None,
             )
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
@@ -83,6 +81,13 @@ class ModemPool:
         with self.lock:
             for w in self.modems.values():
                 if w.number == number:
+                    return w
+        return None
+
+    def find_by_dongle(self, dongle_name: str) -> Optional[BaseModemWorker]:
+        with self.lock:
+            for w in self.modems.values():
+                if hasattr(w, "dongle_name") and w.dongle_name == dongle_name:
                     return w
         return None
 
