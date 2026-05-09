@@ -55,7 +55,8 @@ class ModemPool:
     def reserve_modem(self, service: str, country: Optional[str]) -> Optional[dict]:
         with self.lock:
             for w in self.modems.values():
-                if w.is_free() and not w.number.startswith("unknown"):
+                signal_ok = not hasattr(w, 'rssi') or w.rssi() >= 3
+                if w.is_free() and not w.number.startswith("unknown") and signal_ok:
                     activation_id = str(uuid.uuid4())
                     w.reserve(activation_id, service)
                     repo.set_modem_status(w.modem_id, "BUSY", activation_id)
