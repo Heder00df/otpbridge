@@ -232,21 +232,64 @@ CRON_JOB="*/5 * * * * $INSTALL_DIR/tools/healthcheck_modems.sh >> /var/log/otpbr
 ( crontab -l 2>/dev/null | grep -v "healthcheck_modems"; echo "$CRON_JOB" ) | crontab -
 ok "Healthcheck instalado (a cada 5 minutos)"
 
+# ── Comando otpbridge-info ────────────────────────────────
+info "Criando comando otpbridge-info..."
+cat > /usr/local/bin/otpbridge-info << INFOSCRIPT
+#!/bin/bash
+. /opt/otpbridge/.env 2>/dev/null
+
+# IP público ou local
+IP_PUB=\$(curl -s --max-time 3 ifconfig.me 2>/dev/null || echo "")
+IP_LOC=\$(hostname -I | awk '{print \$1}')
+IP=\${IP_PUB:-\$IP_LOC}
+
+STATUS=\$(systemctl is-active otpbridge 2>/dev/null)
+MODEMS=\$(mmcli -L 2>/dev/null | grep -c "Modem/" || echo "0")
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║                  OTPBridge — Status                     ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+echo "  Serviço     : \$STATUS"
+echo "  Modems      : \$MODEMS detectados"
+echo ""
+echo "  ── Cadastre na HeroSMS ────────────────────────────────"
+echo "  URL da API  : http://\$IP:\${PORT:-8000}/supplier"
+echo "  Chave       : \$SUPPLIER_KEY"
+echo ""
+echo "  ── Comandos úteis ─────────────────────────────────────"
+echo "  Logs        : sudo journalctl -u otpbridge -f"
+echo "  Restart     : sudo systemctl restart otpbridge"
+echo "  Modems      : mmcli -L"
+echo "  Números     : source /opt/otpbridge/.venv/bin/activate && python3 /opt/otpbridge/tools/list_numbers.py"
+echo ""
+INFOSCRIPT
+chmod +x /usr/local/bin/otpbridge-info
+ok "Comando 'otpbridge-info' disponível"
+
 # ── Resumo final ──────────────────────────────────────────
+IP_PUB=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || echo "")
+IP_LOC=$(hostname -I | awk '{print $1}')
+IP=${IP_PUB:-$IP_LOC}
+
 echo ""
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║              Instalação concluída!                   ║"
-echo "╚══════════════════════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║                 Instalação concluída!                   ║"
+echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
-ok "OTPBridge rodando em http://0.0.0.0:$PORT"
+ok "OTPBridge rodando em http://$IP:$PORT/supplier"
 echo ""
-echo "  Chave da sua API : $SUPPLIER_KEY"
-echo "  Banco de dados   : postgresql://$DB_USER:****@localhost/$DB_NAME"
-echo "  Logs             : sudo journalctl -u otpbridge -f"
-echo "  Status           : sudo systemctl status otpbridge"
+echo "  ── Cadastre na HeroSMS ──────────────────────────────────"
+echo "  URL da API  : http://$IP:$PORT/supplier"
+echo "  Chave       : $SUPPLIER_KEY"
+echo ""
+echo "  ── Comandos úteis ───────────────────────────────────────"
+echo "  Ver info    : otpbridge-info"
+echo "  Logs        : sudo journalctl -u otpbridge -f"
+echo "  Status      : sudo systemctl status otpbridge"
 echo ""
 warn "Conecte os modems Huawei E303 e aguarde ~30s para detecção automática."
 echo ""
 echo "  Verificar modems : mmcli -L"
-echo "  Listar números   : source $INSTALL_DIR/.venv/bin/activate && python3 $INSTALL_DIR/tools/list_numbers.py"
 echo ""
