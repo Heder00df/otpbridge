@@ -1,0 +1,136 @@
+<mxfile host="app.diagrams.net" modified="2026-05-06T00:00:00.000Z" agent="Claude" version="24.7.17" type="device">
+  <diagram id="herosms-multino" name="HeroSMS Multi-Nó">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1150" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="HeroSMS Supplier — Arquitetura Multi-Nó (LAN + Cloudflare Tunnel)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="180" y="20" width="1500" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Zone backgrounds -->
+        <mxCell id="zone_internet" value="INTERNET" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;verticalAlign=top;opacity=40" vertex="1" parent="1">
+          <mxGeometry x="30" y="85" width="580" height="330" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="zone_lan" value="LAN  —  192.168.1.x" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1;verticalAlign=top;opacity=40;fontColor=#333333" vertex="1" parent="1">
+          <mxGeometry x="30" y="470" width="1220" height="430" as="geometry"/>
+        </mxCell>
+
+        <!-- HeroSMS -->
+        <mxCell id="herosms" value="HeroSMS Platform&#xa;(internet)&#xa;&#xa;─────────────&#xa;GET_SERVICES ──►&#xa;GET_NUMBER ──►&#xa;FINISH_ACTIVATION ──►&#xa;◄── PUSH_SMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="55" y="150" width="230" height="220" as="geometry"/>
+        </mxCell>
+
+        <!-- Cloudflare Tunnel -->
+        <mxCell id="cloudflare" value="Cloudflare Tunnel&#xa;&#xa;cloudflared&#xa;&#xa;supplier.seudominio.com&#xa;→ localhost:8000&#xa;&#xa;(gratuito, sem IP fixo)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="355" y="175" width="220" height="180" as="geometry"/>
+        </mxCell>
+
+        <!-- Central API -->
+        <mxCell id="central" value="Central API  —  192.168.1.100 : 8000&#xa;FastAPI&#xa;&#xa;Endpoints HeroSMS:&#xa;  GET_SERVICES  (agrega /status dos nós)&#xa;  GET_NUMBER    (chama POST /reserve no nó)&#xa;  FINISH_ACTIVATION (chama POST /release)&#xa;&#xa;Recebe POST /otps dos nós&#xa;Chama PUSH_SMS → HeroSMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="660" y="95" width="420" height="280" as="geometry"/>
+        </mxCell>
+
+        <!-- DB -->
+        <mxCell id="db" value="PostgreSQL&#xa;(central)&#xa;&#xa;nodes&#xa;modems + node_id&#xa;ativacoes&#xa;logs" style="shape=cylinder3d;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1140" y="130" width="190" height="200" as="geometry"/>
+        </mxCell>
+
+        <!-- PC 1 -->
+        <mxCell id="pc1" value="PC 1  —  192.168.1.101 : 8001&#xa;~33 modems&#xa;&#xa;Node API:&#xa;  GET  /status&#xa;  POST /reserve&#xa;  POST /release&#xa;&#xa;SMS Worker · Voice Handler&#xa;Whisper (base) · OTP Extractor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="55" y="520" width="300" height="320" as="geometry"/>
+        </mxCell>
+
+        <!-- PC 2 -->
+        <mxCell id="pc2" value="PC 2  —  192.168.1.102 : 8001&#xa;~33 modems&#xa;&#xa;Node API:&#xa;  GET  /status&#xa;  POST /reserve&#xa;  POST /release&#xa;&#xa;SMS Worker · Voice Handler&#xa;Whisper (base) · OTP Extractor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="445" y="520" width="300" height="320" as="geometry"/>
+        </mxCell>
+
+        <!-- PC 3 -->
+        <mxCell id="pc3" value="PC 3  —  192.168.1.103 : 8001&#xa;~32 modems&#xa;&#xa;Node API:&#xa;  GET  /status&#xa;  POST /reserve&#xa;  POST /release&#xa;&#xa;SMS Worker · Voice Handler&#xa;Whisper (base) · OTP Extractor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="835" y="520" width="300" height="320" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Legenda&#xa;&#xa;Azul:    HeroSMS (internet)&#xa;Laranja: Cloudflare Tunnel&#xa;Verde:   Central API + PostgreSQL&#xa;Vermelho: Nós (PCs com modems)&#xa;&#xa;Setas sólidas:  Central chama nó (RPC direto)&#xa;Setas tracejadas: Nó reporta ao Central&#xa;&#xa;Todos os nós têm IP fixo interno.&#xa;Apenas o Central é exposto via Cloudflare." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=13" vertex="1" parent="1">
+          <mxGeometry x="1290" y="470" width="560" height="280" as="geometry"/>
+        </mxCell>
+
+        <!-- Flow note -->
+        <mxCell id="flownote" value="Fluxo GET_NUMBER:&#xa;HeroSMS → Cloudflare → Central → GET /status (todos os nós) → seleciona nó com mais folga → POST /reserve → retorna número&#xa;&#xa;Fluxo OTP entregue:&#xa;Modem recebe SMS/voz → nó extrai código → POST /otps → Central → PUSH_SMS → HeroSMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=13" vertex="1" parent="1">
+          <mxGeometry x="55" y="900" width="1200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Edges -->
+
+        <!-- HeroSMS → Cloudflare -->
+        <mxCell id="e1" value="GET_SERVICES / GET_NUMBER&#xa;FINISH_ACTIVATION (HTTPS)" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12" edge="1" parent="1" source="herosms" target="cloudflare">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Cloudflare → Central -->
+        <mxCell id="e2" value="túnel" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12" edge="1" parent="1" source="cloudflare" target="central">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Central → HeroSMS: PUSH_SMS (dashed, curved above) -->
+        <mxCell id="e3" value="PUSH_SMS (código OTP)" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;dashed=1;strokeColor=#6c8ebf;fontColor=#6c8ebf" edge="1" parent="1" source="central" target="herosms">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870" y="60"/>
+              <mxPoint x="170" y="60"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Central → DB -->
+        <mxCell id="e4" value="persistência" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12" edge="1" parent="1" source="central" target="db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Central → PC1 -->
+        <mxCell id="e5" value="GET /status&#xa;POST /reserve&#xa;POST /release" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#82b366;fontColor=#82b366" edge="1" parent="1" source="central" target="pc1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Central → PC2 -->
+        <mxCell id="e6" value="GET /status&#xa;POST /reserve&#xa;POST /release" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#82b366;fontColor=#82b366" edge="1" parent="1" source="central" target="pc2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Central → PC3 -->
+        <mxCell id="e7" value="GET /status&#xa;POST /reserve&#xa;POST /release" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#82b366;fontColor=#82b366" edge="1" parent="1" source="central" target="pc3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- PC1 → Central: POST /otps -->
+        <mxCell id="e8" value="POST /otps" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;dashed=1;strokeColor=#b85450;fontColor=#b85450;exitX=0.5;exitY=0;exitDx=0;exitDy=0" edge="1" parent="1" source="pc1" target="central">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="205" y="490"/>
+              <mxPoint x="750" y="490"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- PC2 → Central: POST /otps -->
+        <mxCell id="e9" value="POST /otps" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;dashed=1;strokeColor=#b85450;fontColor=#b85450" edge="1" parent="1" source="pc2" target="central">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="595" y="500"/>
+              <mxPoint x="820" y="500"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- PC3 → Central: POST /otps -->
+        <mxCell id="e10" value="POST /otps" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;dashed=1;strokeColor=#b85450;fontColor=#b85450" edge="1" parent="1" source="pc3" target="central">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

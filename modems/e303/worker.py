@@ -22,7 +22,8 @@ class E303Worker(BaseModemWorker):
         self._rssi = 0
         self._rssi_lock = threading.Lock()
         super().__init__(modem_id=modem_id, number=number, on_otp=on_otp)
-        threading.Thread(target=self._poll_rssi, daemon=True).start()
+        # poll rssi desabilitado temporariamente
+        # threading.Thread(target=self._poll_rssi, daemon=True).start()
 
     def start(self):
         import db.repository as repo
@@ -38,24 +39,9 @@ class E303Worker(BaseModemWorker):
         with self._rssi_lock:
             return self._rssi
 
-    def _poll_rssi(self):
-        """Atualiza RSSI a cada 30s via Asterisk CLI."""
-        while True:
-            try:
-                r = subprocess.run(
-                    ["sudo", "-n", "asterisk", "-rx",
-                     f"dongle show device state {self.dongle_name}"],
-                    capture_output=True, text=True, timeout=5
-                )
-                for line in r.stdout.splitlines():
-                    if "RSSI" in line and ":" in line:
-                        val = int(line.split(":")[1].strip().split(",")[0].strip())
-                        with self._rssi_lock:
-                            self._rssi = val
-                        break
-            except Exception:
-                pass
-            time.sleep(30)
+    def set_rssi(self, value: int):
+        with self._rssi_lock:
+            self._rssi = value
 
     def deliver_sms(self, text: str):
         """Chamado pelo E303Webhook quando SMS chega neste dongle."""

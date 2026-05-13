@@ -16,6 +16,9 @@ async def e303_sms(request: Request):
     from_number = data.get("from_number", "")
     print(f"[E303 Webhook] dongle={dongle_name} de={from_number} texto={text}")
 
+    from api.internal import record_discovery
+    record_discovery(dongle_name, from_number, text)
+
     pool = get_pool()
     worker = pool.find_by_dongle(dongle_name)
     if worker:

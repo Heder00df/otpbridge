@@ -1,0 +1,167 @@
+<mxfile host="app.diagrams.net" modified="2026-05-06T00:00:00.000Z" agent="ChatGPT" version="24.7.17" type="device">
+  <diagram id="herosms-supplier-architecture" name="HeroSMS Supplier">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="Sistema Supplier HeroSMS / SMSHub - Ativação, Fila, Entrega OTP (SMS + Voz)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="1300" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hero" value="HeroSMS Platform&#xa;Comprador / Marketplace&#xa;&#xa;Chama GET_SERVICES&#xa;Chama GET_NUMBER&#xa;Recebe PUSH_SMS&#xa;Envia FINISH_ACTIVATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="170" width="270" height="190" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="server" value="Seu Servidor Supplier API&#xa;&#xa;Endpoints expostos:&#xa;GET_SERVICES&#xa;GET_NUMBER&#xa;FINISH_ACTIVATION&#xa;&#xa;Também envia PUSH_SMS para HeroSMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="440" y="150" width="300" height="230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="queue" value="Fila / Orquestrador&#xa;&#xa;Controla:&#xa;• modem livre&#xa;• modem reservado&#xa;• timeout&#xa;• retry&#xa;• ativação concluída&#xa;• cancelamento" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="840" y="150" width="280" height="230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="modems" value="Pool de 98 Modems Huawei E303&#xa;SIMs físicos&#xa;&#xa;Cada modem possui:&#xa;• número próprio (ttyUSB0 = AT)&#xa;• status&#xa;• serviço permitido&#xa;• leitor de SMS&#xa;• receptor de chamada de voz&#xa;• lock de ativação" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1230" y="150" width="310" height="230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="db" value="Banco de Dados&#xa;&#xa;Tabelas principais:&#xa;modems&#xa;activations&#xa;sms_messages&#xa;services&#xa;logs" style="shape=cylinder3d;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="510" width="210" height="190" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="worker" value="SMS Worker / Leitor&#xa;&#xa;Faz polling dos modems&#xa;lê SMS recebido (ttyUSB0)&#xa;extrai OTP via regex&#xa;associa ao activation_id&#xa;envia PUSH_SMS ao servidor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="860" y="510" width="280" height="190" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="monitor" value="Painel Admin&#xa;&#xa;Acompanha:&#xa;• modems online/offline&#xa;• ativações em andamento&#xa;• OTP recebido&#xa;• falhas&#xa;• ganhos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=15;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="510" width="250" height="190" as="geometry"/>
+        </mxCell>
+
+        <!-- Voice processing nodes -->
+        <mxCell id="voiceHandler" value="Voice Handler (100% Automático)&#xa;&#xa;1. RING detectado no modem&#xa;2. ATA → atende a chamada&#xa;3. AT^DDSETEX=2 → ativa áudio&#xa;4. Captura PCM via ttyUSB1&#xa;5. Detecta silêncio → encerra&#xa;6. AT+CHUP → desliga&#xa;7. DTMF auto se 'pressione 1'&#xa;&#xa;Sem intervenção humana" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1230" y="510" width="310" height="230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="whisper" value="Whisper Engine (local / offline)&#xa;&#xa;PCM (ttyUSB1)&#xa;  → ffmpeg → WAV 16kHz&#xa;  → Whisper base&#xa;  → texto transcrito&#xa;&#xa;Gratuito · CPU · sem API externa" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1230" y="780" width="310" height="180" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="otpExtractor" value="OTP Extractor&#xa;&#xa;SMS path:&#xa;  texto bruto → regex → dígitos&#xa;&#xa;Voz path:&#xa;  transcrição → regex → dígitos&#xa;&#xa;→ envia ao servidor como PUSH_SMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="860" y="780" width="310" height="180" as="geometry"/>
+        </mxCell>
+
+        <!-- Original edges -->
+        <mxCell id="e1" value="1. GET_SERVICES&#xa;consulta disponibilidade a cada 10–20s" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="hero" target="server">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" value="2. Resposta: serviços e quantidades" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;dashed=1" edge="1" parent="1" source="server" target="hero">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="390" y="330" as="sourcePoint"/>
+            <mxPoint x="340" y="330" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e3" value="3. GET_NUMBER&#xa;HeroSMS pede número para serviço/país" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="hero" target="server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="250"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e4" value="4. Reserva modem livre" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="server" target="queue">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e5" value="5. Seleciona SIM/modem disponível" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="queue" target="modems">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e6" value="6. Retorna número para HeroSMS" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;dashed=1" edge="1" parent="1" source="server" target="hero">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="210"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e7" value="7a. SMS chega no SIM físico (ttyUSB0)" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="modems" target="worker">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e8" value="8a. Worker lê SMS e extrai OTP" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="worker" target="otpExtractor">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e9" value="9. PUSH_SMS&#xa;envia código OTP para HeroSMS" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="server" target="hero">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="360"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e10" value="10. FINISH_ACTIVATION&#xa;status 3 concluído / status 8 cancelado" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="hero" target="server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="290"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e11" value="11. Libera modem para próximo pedido" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="server" target="queue">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="790" y="360"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e12" value="persistência" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="server" target="db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e13" value="logs / métricas" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="server" target="monitor">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="600"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Voice path edges -->
+        <mxCell id="e14" value="7b. Chamada de voz chega (RING)" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;strokeColor=#b85450;fontColor=#b85450" edge="1" parent="1" source="modems" target="voiceHandler">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e15" value="8b. PCM via ttyUSB1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;strokeColor=#82b366;fontColor=#82b366" edge="1" parent="1" source="voiceHandler" target="whisper">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e16" value="8c. Texto transcrito → regex" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;strokeColor=#82b366;fontColor=#82b366" edge="1" parent="1" source="whisper" target="otpExtractor">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e17" value="OTP extraído → PUSH_SMS" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=13;strokeColor=#d79b00;fontColor=#d79b00" edge="1" parent="1" source="otpExtractor" target="server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="770" y="870"/>
+              <mxPoint x="770" y="310"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Legend and status -->
+        <mxCell id="legend" value="Legenda do fluxo&#xa;&#xa;Azul: plataforma externa HeroSMS&#xa;Verde: sua API Supplier / Whisper Engine&#xa;Amarelo: controle de fila/reserva / OTP Extractor&#xa;Vermelho: modems físicos com SIM / Voice Handler&#xa;Laranja: worker de leitura de SMS&#xa;Roxo: banco de dados&#xa;&#xa;ttyUSB0 = AT commands (SMS/controle)&#xa;ttyUSB1 = PCM áudio (voz)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="60" y="1010" width="560" height="180" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="status" value="Estados principais da ativação&#xa;&#xa;AVAILABLE → RESERVED → WAITING_SMS → SMS_RECEIVED → PUSHED → FINISHED&#xa;&#xa;Cancelamento/timeout: RESERVED ou WAITING_SMS → CANCELED → AVAILABLE&#xa;&#xa;Paths de entrega de OTP:&#xa;  Path A (SMS):  modem → SMS Worker → OTP Extractor (regex) → PUSH_SMS&#xa;  Path B (Voz): modem → Voice Handler → Whisper → OTP Extractor (STT+regex) → PUSH_SMS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="680" y="1010" width="860" height="180" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

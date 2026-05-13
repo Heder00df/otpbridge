@@ -1,5 +1,8 @@
 import json
+import re
+import subprocess
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -38,6 +41,28 @@ class ModemPool:
             )
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
+        if HARDWARE_TYPE == "e303":
+            threading.Thread(target=self._poll_rssi_all, daemon=True).start()
+
+    def _poll_rssi_all(self):
+        """Atualiza RSSI de todos os dongles com uma única chamada a cada 60s."""
+        time.sleep(3)  # aguarda modems iniciarem
+        while True:
+            try:
+                r = subprocess.run(
+                    ["sudo", "-n", "asterisk", "-rx", "dongle show devices"],
+                    capture_output=True, text=True, timeout=5
+                )
+                for line in r.stdout.splitlines():
+                    m = re.match(r"(dongle\d+)\s+\d+\s+\S+\s+(\d+)", line)
+                    if m:
+                        name, rssi = m.group(1), int(m.group(2))
+                        for w in self.modems.values():
+                            if hasattr(w, "dongle_name") and w.dongle_name == name and hasattr(w, "set_rssi"):
+                                w.set_rssi(rssi)
+            except Exception:
+                pass
+            time.sleep(60)  # só dorme após o primeiro poll
 
     def stop(self):
         for w in self.modems.values():
