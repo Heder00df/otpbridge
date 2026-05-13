@@ -1,6 +1,6 @@
 #!/bin/bash
 # OTPBridge — Instalador automático
-# Compatível com Ubuntu 22.04+ e Debian 12+
+# Compatível com Ubuntu 20.04+ e Debian 12+
 # Uso: sudo bash install.sh
 
 set -euo pipefail
@@ -22,6 +22,46 @@ err()  { echo -e "${RED}✘ $1${NC}"; exit 1; }
 
 . /etc/os-release
 [[ "$ID" != "ubuntu" && "$ID" != "debian" ]] && err "Apenas Ubuntu/Debian suportados."
+
+# ── Verificação de versão do SO ───────────────────────────
+info "Verificando sistema operacional..."
+
+UBUNTU_MIN="20.04"
+DEBIAN_MIN="12"
+
+if [[ "$ID" == "ubuntu" ]]; then
+    VERSION_OK=$(awk -v v="$VERSION_ID" -v m="$UBUNTU_MIN" 'BEGIN { print (v >= m) ? "1" : "0" }')
+    [ "$VERSION_OK" != "1" ] && err "Ubuntu $VERSION_ID não suportado. Mínimo: Ubuntu $UBUNTU_MIN"
+    ok "Ubuntu $VERSION_ID detectado"
+elif [[ "$ID" == "debian" ]]; then
+    VERSION_OK=$(awk -v v="$VERSION_ID" -v m="$DEBIAN_MIN" 'BEGIN { print (v >= m) ? "1" : "0" }')
+    [ "$VERSION_OK" != "1" ] && err "Debian $VERSION_ID não suportado. Mínimo: Debian $DEBIAN_MIN"
+    ok "Debian $VERSION_ID detectado"
+fi
+
+# ── Verificação e instalação do Python 3.10+ ──────────────
+info "Verificando Python..."
+
+PYTHON_BIN=""
+for bin in python3.12 python3.11 python3.10; do
+    if command -v "$bin" &>/dev/null; then
+        PYTHON_BIN="$bin"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    warn "Python 3.10+ não encontrado. Instalando Python 3.12..."
+    if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "20.04" ]]; then
+        add-apt-repository -y ppa:deadsnakes/ppa > /dev/null 2>&1
+    fi
+    apt-get update -qq
+    apt-get install -y -qq python3.12 python3.12-venv python3.12-distutils > /dev/null
+    PYTHON_BIN="python3.12"
+fi
+
+PYTHON_VERSION=$("$PYTHON_BIN" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+ok "Python $PYTHON_VERSION ($PYTHON_BIN)"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
@@ -59,7 +99,7 @@ echo ""
 info "Instalando dependências do sistema..."
 apt-get update -qq
 apt-get install -y -qq \
-    python3 python3-pip python3-venv \
+    python3-pip \
     postgresql postgresql-client \
     modemmanager \
     git curl openssl \
@@ -89,7 +129,7 @@ ok "Código obtido"
 
 # ── Ambiente Python ───────────────────────────────────────
 info "Criando ambiente virtual Python..."
-python3 -m venv "$INSTALL_DIR/.venv" > /dev/null
+"$PYTHON_BIN" -m venv "$INSTALL_DIR/.venv" > /dev/null
 "$INSTALL_DIR/.venv/bin/pip" install -q --upgrade pip
 "$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
 ok "Dependências Python instaladas"
