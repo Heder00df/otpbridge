@@ -1,12 +1,23 @@
 import re
 import subprocess
 
+# Códigos USSD por operadora, em ordem de tentativa.
+# Cada entrada: (operadora, código, regex para extrair o número da resposta)
+_USSD_OPERATORS = [
+    ("TIM",   "*846#",  r"\[(\d{8,13})\]"),
+    ("Claro", "*510#",  r"\b(\d{10,13})\b"),
+    ("Claro", "*544#",  r"\b(\d{10,13})\b"),
+    ("Vivo",  "*8486#", r"\b(\d{10,13})\b"),
+    ("Oi",    "*880#",  r"\b(\d{10,13})\b"),
+    ("Oi",    "*461#",  r"\b(\d{10,13})\b"),
+]
+
 
 def detect_modems() -> list[tuple[int, str]]:
     """
     Retorna lista de (mm_index, number) para todos os modems detectados
-    pelo ModemManager. Prioriza número salvo no banco (corrigido manualmente)
-    sobre o CNUM do SIM, que pode estar errado em chips M2M.
+    pelo ModemManager. Prioriza número salvo no banco, depois tenta USSD
+    de todas as operadoras, depois CNUM do SIM como último recurso.
     """
     db_numbers = _load_db_numbers()
 
@@ -24,7 +35,6 @@ def detect_modems() -> list[tuple[int, str]]:
 
 
 def _load_db_numbers() -> dict:
-    """Carrega mapeamento porta_usb → numero do banco."""
     try:
         from db.repository import _engine as engine
         from sqlalchemy import text
@@ -42,36 +52,65 @@ def _load_db_numbers() -> dict:
 
 
 def _get_number_from_sim(mm_index: int) -> str:
-    # Tenta USSD *846# (TIM/roaming) — retorna número real da rede
-    number = _ussd_number(mm_index)
+    number = _ussd_all_operators(mm_index)
     if number:
         return number
 
-    # Fallback: CNUM do SIM (pode estar errado em chips M2M)
+    # Último recurso: CNUM gravado no SIM (falha em chips M2M)
     r = subprocess.run(["mmcli", "-m", str(mm_index)], capture_output=True, text=True)
     for line in r.stdout.splitlines():
         if "own:" in line:
             num = line.split("own:")[-1].strip().lstrip("+")
-            if num:
-                return num
+            if num and not num.startswith("unknown"):
+                return _normalize(num)
     return f"unknown-{mm_index}"
 
 
-def _ussd_number(mm_index: int) -> str:
-    """Consulta número real via USSD *846# (TIM). Retorna vazio se falhar."""
+def _ussd_all_operators(mm_index: int) -> str:
+    """
+    Tenta cada operadora em sequência e retorna o primeiro número válido.
+    Salva no banco assim que encontrar, para não precisar repetir na próxima inicialização.
+    """
+    for operadora, codigo, pattern in _USSD_OPERATORS:
+        number = _ussd_query(mm_index, codigo, pattern)
+        if number:
+            print(f"[Detector] MM:{mm_index} → {number} ({operadora} via {codigo})")
+            _save_to_db(mm_index, number)
+            return number
+    return ""
+
+
+def _ussd_query(mm_index: int, codigo: str, pattern: str) -> str:
     try:
         r = subprocess.run(
-            ["mmcli", "-m", str(mm_index), "--3gpp-ussd-initiate=*846#"],
+            ["mmcli", "-m", str(mm_index), f"--3gpp-ussd-initiate={codigo}"],
             capture_output=True, text=True, timeout=20,
         )
-        # Resposta: "Telefone [16988130896] nao Autorizado"
-        m = re.search(r"\[(\d{8,13})\]", r.stdout)
+        m = re.search(pattern, r.stdout)
         if m:
-            num = m.group(1)
-            # Garante prefixo 55 (Brasil)
-            if not num.startswith("55"):
-                num = "55" + num
-            return num
+            return _normalize(m.group(1))
     except Exception:
         pass
     return ""
+
+
+def _normalize(num: str) -> str:
+    """Garante prefixo 55 (Brasil) e remove +."""
+    num = num.lstrip("+")
+    if not num.startswith("55"):
+        num = "55" + num
+    return num
+
+
+def _save_to_db(mm_index: int, number: str):
+    """Persiste o número descoberto para não ter que consultar USSD na próxima vez."""
+    try:
+        from db.repository import _engine as engine
+        from sqlalchemy import text
+        porta = f"MM:{mm_index}"
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE modems SET numero = :num WHERE porta_usb = :porta"
+            ), {"num": number, "porta": porta})
+    except Exception as e:
+        print(f"[Detector] erro ao salvar número no banco: {e}")
