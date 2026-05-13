@@ -1,0 +1,18 @@
+[Unit]
+Description=OTPBridge SMS Gateway
+After=network.target postgresql.service ModemManager.service
+Requires=postgresql.service ModemManager.service
+
+[Service]
+Type=simple
+User=heder
+WorkingDirectory=/home/heder/dev/projetos/otpbridge
+EnvironmentFile=/home/heder/dev/projetos/otpbridge/.env
+ExecStart=/home/heder/dev/projetos/otpbridge/.venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
