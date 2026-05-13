@@ -2,9 +2,11 @@ import os
 import uvicorn
 from fastapi import FastAPI
 from api.supplier import router as supplier_router
+from api.dashboard.routes import router as dashboard_router
 
 app = FastAPI(title="OTPBridge Supplier API")
 app.include_router(supplier_router)
+app.include_router(dashboard_router)
 
 # Webhooks de hardware de rede (GoIP / OpenVox)
 from modems.goip.webhook import goip_router

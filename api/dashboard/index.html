@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OTPBridge Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+  header {
+    background: #1a1d2e;
+    border-bottom: 1px solid #2d3148;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 18px; font-weight: 700; color: #7c86ff; letter-spacing: 1px; }
+  header span { font-size: 12px; color: #64748b; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* Cards de status */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat {
+    background: #1a1d2e;
+    border: 1px solid #2d3148;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat .val { font-size: 32px; font-weight: 700; color: #7c86ff; }
+  .stat .lbl { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; }
+
+  /* Seções */
+  .section {
+    background: #1a1d2e;
+    border: 1px solid #2d3148;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .section h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Tabela de modems */
+  .modem-grid { display: flex; flex-direction: column; gap: 8px; }
+  .modem-row {
+    display: grid;
+    grid-template-columns: 70px 160px 1fr 90px 70px;
+    align-items: center;
+    background: #12151f;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    padding: 10px 14px;
+    gap: 12px;
+  }
+  .modem-port { font-size: 12px; color: #64748b; font-family: monospace; }
+  .modem-num  { font-size: 13px; font-weight: 500; }
+  .signal-bar { display: flex; align-items: center; gap: 8px; }
+  .signal-bar .bar {
+    flex: 1; height: 6px; background: #2d3148; border-radius: 3px; overflow: hidden;
+  }
+  .signal-bar .fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .signal-bar .pct { font-size: 11px; color: #64748b; width: 32px; text-align: right; }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .badge.FREE   { background: #14532d; color: #4ade80; }
+  .badge.BUSY   { background: #713f12; color: #fbbf24; }
+  .badge.OFFLINE{ background: #1e1e2e; color: #475569; }
+
+  /* Botões */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary  { background: #4f46e5; color: #fff; }
+  .btn-danger   { background: #dc2626; color: #fff; }
+  .btn-success  { background: #16a34a; color: #fff; }
+
+  /* SMS log */
+  .sms-list { display: flex; flex-direction: column; gap: 6px; }
+  .sms-row {
+    display: grid;
+    grid-template-columns: 130px 100px 1fr 90px;
+    align-items: center;
+    background: #12151f;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    padding: 8px 14px;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .sms-hora  { color: #64748b; font-family: monospace; font-size: 11px; }
+  .sms-porta { color: #7c86ff; font-family: monospace; }
+  .sms-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sms-code  {
+    font-weight: 700;
+    color: #4ade80;
+    font-family: monospace;
+    font-size: 14px;
+    text-align: right;
+  }
+
+  /* Config */
+  .config-form { display: flex; flex-direction: column; gap: 14px; }
+  .config-row  { display: flex; gap: 10px; align-items: center; }
+  .config-row label { font-size: 12px; color: #94a3b8; width: 130px; flex-shrink: 0; }
+  .config-row input {
+    flex: 1;
+    background: #12151f;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: monospace;
+  }
+  .config-row input:focus { outline: none; border-color: #4f46e5; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1a1d2e;
+    border: 1px solid #2d3148;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity .3s;
+    z-index: 999;
+  }
+  .toast.show { opacity: 1; }
+  .toast.ok  { border-color: #16a34a; color: #4ade80; }
+  .toast.err { border-color: #dc2626; color: #f87171; }
+
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 700px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .modem-row { grid-template-columns: 60px 1fr 70px; }
+    .modem-row .signal-bar, .modem-row .modem-num { display: none; }
+    .sms-row { grid-template-columns: 90px 1fr 70px; }
+    .sms-row .sms-porta { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ OTPBridge</h1>
+  <span id="last-update">atualizando...</span>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="val" id="s-modems">–</div><div class="lbl">Modems Ativos</div></div>
+    <div class="stat"><div class="val" id="s-livres">–</div><div class="lbl">Livres</div></div>
+    <div class="stat"><div class="val" id="s-ativ">–</div><div class="lbl">Ativações Hoje</div></div>
+    <div class="stat"><div class="val" id="s-sms">–</div><div class="lbl">SMS Hoje</div></div>
+  </div>
+
+  <!-- Modems -->
+  <div class="section">
+    <h2>
+      Modems
+      <button class="btn btn-success" onclick="redescobrir()" id="btn-redesc">🔍 Redescobrir Números</button>
+    </h2>
+    <div class="modem-grid" id="modem-list">
+      <div style="color:#64748b;font-size:13px;">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- SMS Log -->
+  <div class="section">
+    <h2>Últimos SMS Recebidos</h2>
+    <div class="sms-list" id="sms-list">
+      <div style="color:#64748b;font-size:13px;">Nenhum SMS ainda.</div>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="section">
+    <h2>Configurações</h2>
+    <div class="config-form">
+      <div class="config-row">
+        <label>Chave HeroSMS</label>
+        <input type="text" id="cfg-herosms" placeholder="sua chave de agente">
+      </div>
+      <div class="config-row">
+        <label>Chave da API</label>
+        <input type="text" id="cfg-supplier" placeholder="chave para a HeroSMS chamar você">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="salvarConfig()">💾 Salvar</button>
+        <button class="btn btn-danger" onclick="reiniciar()">🔄 Reiniciar Serviço</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function signalColor(pct) {
+  if (pct >= 50) return '#4ade80';
+  if (pct >= 25) return '#fbbf24';
+  return '#f87171';
+}
+
+function renderModems(modems) {
+  const el = document.getElementById('modem-list');
+  if (!modems.length) { el.innerHTML = '<div style="color:#64748b;font-size:13px;">Nenhum modem detectado.</div>'; return; }
+  el.innerHTML = modems.map(m => `
+    <div class="modem-row">
+      <span class="modem-port">MM:${m.mm_index}</span>
+      <span class="modem-num">${m.number}</span>
+      <div class="signal-bar">
+        <div class="bar"><div class="fill" style="width:${m.signal}%;background:${signalColor(m.signal)}"></div></div>
+        <span class="pct">${m.signal}%</span>
+      </div>
+      <span class="badge ${m.status}">${m.status}</span>
+    </div>
+  `).join('');
+}
+
+function renderSms(list) {
+  const el = document.getElementById('sms-list');
+  if (!list.length) { el.innerHTML = '<div style="color:#64748b;font-size:13px;">Nenhum SMS ainda.</div>'; return; }
+  el.innerHTML = list.map(s => `
+    <div class="sms-row">
+      <span class="sms-hora">${s.hora.slice(11)}</span>
+      <span class="sms-porta">${s.porta}</span>
+      <span class="sms-texto" title="${s.texto}">${s.texto}</span>
+      <span class="sms-code">${s.codigo || ''}</span>
+    </div>
+  `).join('');
+}
+
+function toast(msg, tipo = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${tipo}`;
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+async function carregar() {
+  try {
+    const r = await fetch('/dashboard/api/status');
+    const d = await r.json();
+    document.getElementById('s-modems').textContent = d.stats.total_modems;
+    document.getElementById('s-livres').textContent = d.stats.modems_livres;
+    document.getElementById('s-ativ').textContent   = d.stats.ativacoes_hoje;
+    document.getElementById('s-sms').textContent    = d.stats.sms_hoje;
+    renderModems(d.modems);
+    renderSms(d.ultimos_sms);
+    document.getElementById('last-update').textContent =
+      'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+  } catch(e) {
+    document.getElementById('last-update').textContent = 'erro ao carregar';
+  }
+}
+
+async function redescobrir() {
+  const btn = document.getElementById('btn-redesc');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> Descobrindo...';
+  try {
+    const r = await fetch('/dashboard/api/redescobrir', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) { toast(`✔ ${d.modems.length} modems processados`); carregar(); }
+    else toast('Erro: ' + d.erro, 'err');
+  } catch(e) { toast('Erro de conexão', 'err'); }
+  btn.disabled = false;
+  btn.innerHTML = '🔍 Redescobrir Números';
+}
+
+async function reiniciar() {
+  if (!confirm('Reiniciar o serviço OTPBridge?')) return;
+  try {
+    const r = await fetch('/dashboard/api/reiniciar', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) toast('✔ Serviço reiniciado');
+    else toast('Erro: ' + d.erro, 'err');
+  } catch(e) { toast('Erro de conexão', 'err'); }
+}
+
+async function salvarConfig() {
+  const body = {
+    HEROSMS_KEY:  document.getElementById('cfg-herosms').value.trim(),
+    SUPPLIER_KEY: document.getElementById('cfg-supplier').value.trim(),
+  };
+  if (!body.HEROSMS_KEY && !body.SUPPLIER_KEY) { toast('Preencha ao menos um campo', 'err'); return; }
+  try {
+    const r = await fetch('/dashboard/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) toast('✔ Salvo — ' + d.aviso);
+    else toast('Erro ao salvar', 'err');
+  } catch(e) { toast('Erro de conexão', 'err'); }
+}
+
+carregar();
+setInterval(carregar, 5000);
+</script>
+</body>
+</html>
