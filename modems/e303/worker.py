@@ -105,7 +105,7 @@ class E303Worker(BaseModemWorker):
                     new_paths = current - known_sms
                     for path in new_paths:
                         sms = self._read_sms(path)
-                        self._handle_sms(sms["text"])
+                        self._handle_sms(sms)
                         self._delete_sms(path)
                     known_sms = current
 
@@ -115,12 +115,15 @@ class E303Worker(BaseModemWorker):
 
     # ── SMS ──────────────────────────────────────────────────
 
-    def _handle_sms(self, text: str):
+    def _handle_sms(self, sms: dict):
         import db.repository as repo
+        text = sms["text"]
+        phone_from = sms.get("number", "unknown")
         code = extract_from_sms(text)
-        repo.log_sms(self.modem_id, self.activation_id, text, code)
-        if not self.activation_id or not code:
+        sms_id = repo.log_sms(self.modem_id, self.activation_id, text, code)
+        print(f"[E303 {self.modem_id}] SMS de={phone_from} texto='{text}' codigo={code}")
+        if not self.activation_id:
             return
-        print(f"[E303 {self.modem_id}] SMS OTP: {code}")
         repo.atualizar_ativacao(self.activation_id, "SMS_RECEBIDO", "SMS", code)
-        self.on_otp(self.activation_id, code, "SMS")
+        from herosms.client import push_sms
+        push_sms(sms_id=sms_id, phone=self.number, phone_from=phone_from, text=text)

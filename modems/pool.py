@@ -92,10 +92,6 @@ class ModemPool:
         with self.lock:
             for w in self.modems.values():
                 if w.activation_id == activation_id:
-                    repo.atualizar_ativacao(activation_id, "PUSH_ENVIADO",
-                                            tipo_otp=otp_type, codigo=code)
                     repo.log_evento("PUSH_OK", w.modem_id, activation_id,
                                     f"code={code} tipo={otp_type}")
                     break
-        from herosms.client import push_sms
-        push_sms(activation_id, code, otp_type)

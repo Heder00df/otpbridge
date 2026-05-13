@@ -76,13 +76,15 @@ def atualizar_ativacao(ativacao_id: str, status: str,
 
 # ── Logs ─────────────────────────────────────────────────
 
-def log_sms(modem_id: int, ativacao_id: str, texto: str, codigo: Optional[str]) -> None:
+def log_sms(modem_id: int, ativacao_id: str, texto: str, codigo: Optional[str]) -> int:
     with session() as s:
-        s.execute(text("""
+        row = s.execute(text("""
             INSERT INTO sms_log (modem_id, ativacao_id, texto_bruto, codigo)
             VALUES (:modem_id, :ativacao_id, :texto, :codigo)
+            RETURNING id
         """), {"modem_id": modem_id, "ativacao_id": ativacao_id,
-               "texto": texto, "codigo": codigo})
+               "texto": texto, "codigo": codigo}).fetchone()
+        return row[0]
 
 def log_voz(modem_id: int, ativacao_id: str, transcricao: str,
             codigo: Optional[str], duracao: int) -> None:
