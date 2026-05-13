@@ -70,6 +70,21 @@ def _get_imei(mm_index: int) -> str:
     return ""
 
 
+def _get_own_number(mm_index: int) -> str:
+    """Lê o número gravado no SIM (CNUM). Fallback quando USSD não responde."""
+    try:
+        r = subprocess.run(["mmcli", "-m", str(mm_index)],
+                           capture_output=True, text=True, timeout=10)
+        for line in r.stdout.splitlines():
+            if "own:" in line:
+                num = line.split("own:")[-1].strip().lstrip("+")
+                if num and len(num) >= 10:
+                    return _normalize(num)
+    except Exception:
+        pass
+    return ""
+
+
 def _lookup_by_imei(imei: str, porta_atual: str) -> str:
     """Busca número pelo IMEI e atualiza porta_usb se o índice MM mudou."""
     try:
@@ -98,6 +113,14 @@ def _ussd_all_operators(mm_index: int, imei: str) -> str:
             print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} ({operadora} via {codigo})")
             _save_to_db(mm_index, imei, number)
             return number
+
+    # Fallback: número gravado no SIM (CNUM) — menos confiável em chips M2M
+    number = _get_own_number(mm_index)
+    if number:
+        print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} (CNUM fallback)")
+        _save_to_db(mm_index, imei, number)
+        return number
+
     return ""
 
 
