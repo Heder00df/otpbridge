@@ -151,7 +151,6 @@ def _save_to_db(mm_index: int, imei: str, number: str):
         from sqlalchemy import text
         porta = f"MM:{mm_index}"
         with engine.begin() as conn:
-            # Upsert por IMEI
             existing = conn.execute(text(
                 "SELECT id FROM modems WHERE imei = :imei"
             ), {"imei": imei}).fetchone()
@@ -160,9 +159,19 @@ def _save_to_db(mm_index: int, imei: str, number: str):
                     "UPDATE modems SET numero = :num, porta_usb = :porta WHERE imei = :imei"
                 ), {"num": number, "porta": porta, "imei": imei})
             else:
-                conn.execute(text(
-                    "UPDATE modems SET imei = :imei, numero = :num, porta_usb = :porta "
-                    "WHERE porta_usb = :porta AND imei IS NULL"
-                ), {"imei": imei, "num": number, "porta": porta})
+                # Aproveita um registro órfão (sem imei e sem porta_usb) se existir
+                orphan = conn.execute(text(
+                    "SELECT id FROM modems WHERE imei IS NULL AND porta_usb IS NULL LIMIT 1"
+                )).fetchone()
+                if orphan:
+                    conn.execute(text(
+                        "UPDATE modems SET imei = :imei, numero = :num, porta_usb = :porta "
+                        "WHERE id = :id"
+                    ), {"imei": imei, "num": number, "porta": porta, "id": orphan[0]})
+                else:
+                    conn.execute(text(
+                        "INSERT INTO modems (imei, porta_usb, numero, hardware, suporta_voz) "
+                        "VALUES (:imei, :porta, :num, 'e303', false)"
+                    ), {"imei": imei, "porta": porta, "num": number})
     except Exception as e:
         print(f"[Detector] erro ao salvar IMEI {imei}: {e}")
