@@ -2,7 +2,6 @@ import re
 import subprocess
 
 # Códigos USSD por operadora, em ordem de tentativa.
-# Cada entrada: (operadora, código, regex para extrair o número da resposta)
 _USSD_OPERATORS = [
     ("TIM",   "*846#",  r"\[(\d{8,13})\]"),
     ("Claro", "*510#",  r"\b(\d{10,13})\b"),
@@ -15,12 +14,10 @@ _USSD_OPERATORS = [
 
 def detect_modems() -> list[tuple[int, str]]:
     """
-    Retorna lista de (mm_index, number) para todos os modems detectados
-    pelo ModemManager. Prioriza número salvo no banco, depois tenta USSD
-    de todas as operadoras, depois CNUM do SIM como último recurso.
+    Retorna lista de (mm_index, number) para todos os modems detectados.
+    Usa IMEI como chave estável — o índice MM:X pode mudar a cada restart,
+    mas o IMEI é fixo no hardware.
     """
-    db_numbers = _load_db_numbers()
-
     result = subprocess.run(["mmcli", "-L"], capture_output=True, text=True)
     modems = []
     for line in result.stdout.splitlines():
@@ -28,54 +25,78 @@ def detect_modems() -> list[tuple[int, str]]:
         if not m:
             continue
         idx = int(m.group(1))
-        porta = f"MM:{idx}"
-        number = db_numbers.get(porta) or _get_number_from_sim(idx)
+        number = _get_number_for_modem(idx)
         modems.append((idx, number))
     return modems
 
 
-def _load_db_numbers() -> dict:
-    try:
-        from db.repository import _engine as engine
-        from sqlalchemy import text
-        with engine.connect() as conn:
-            rows = conn.execute(text(
-                "SELECT porta_usb, numero FROM modems WHERE porta_usb IS NOT NULL"
-            )).fetchall()
-        result = {r[0]: r[1] for r in rows if r[1] and not r[1].startswith("unknown")}
-        if result:
-            print(f"[Detector] números do banco: {result}")
-        return result
-    except Exception as e:
-        print(f"[Detector] erro ao carregar banco: {e}")
-        return {}
+def _get_number_for_modem(mm_index: int) -> str:
+    """
+    Resolve o número do modem usando IMEI como chave estável.
+    Fluxo:
+      1. Lê IMEI do modem via mmcli
+      2. Busca no banco pelo IMEI — se achou, atualiza porta_usb e retorna número
+      3. Se não achou, roda USSD de todas as operadoras
+      4. Salva no banco com IMEI como chave
+      5. Fallback: unknown-{mm_index}
+    """
+    imei = _get_imei(mm_index)
+    if not imei:
+        return f"unknown-{mm_index}"
 
-
-def _get_number_from_sim(mm_index: int) -> str:
-    number = _ussd_all_operators(mm_index)
+    # Atualiza porta_usb para o índice atual (MM pode ter mudado)
+    porta = f"MM:{mm_index}"
+    number = _lookup_by_imei(imei, porta)
     if number:
         return number
 
-    # Último recurso: CNUM gravado no SIM (falha em chips M2M)
-    r = subprocess.run(["mmcli", "-m", str(mm_index)], capture_output=True, text=True)
-    for line in r.stdout.splitlines():
-        if "own:" in line:
-            num = line.split("own:")[-1].strip().lstrip("+")
-            if num and not num.startswith("unknown"):
-                return _normalize(num)
+    # Número não está no banco — descobrir via USSD
+    number = _ussd_all_operators(mm_index, imei)
+    if number:
+        return number
+
     return f"unknown-{mm_index}"
 
 
-def _ussd_all_operators(mm_index: int) -> str:
-    """
-    Tenta cada operadora em sequência e retorna o primeiro número válido.
-    Salva no banco assim que encontrar, para não precisar repetir na próxima inicialização.
-    """
+def _get_imei(mm_index: int) -> str:
+    try:
+        r = subprocess.run(["mmcli", "-m", str(mm_index)],
+                           capture_output=True, text=True, timeout=10)
+        for line in r.stdout.splitlines():
+            if "imei:" in line:
+                return line.split("imei:")[-1].strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _lookup_by_imei(imei: str, porta_atual: str) -> str:
+    """Busca número pelo IMEI e atualiza porta_usb se o índice MM mudou."""
+    try:
+        from db.repository import _engine as engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            row = conn.execute(text(
+                "SELECT id, numero, porta_usb FROM modems WHERE imei = :imei"
+            ), {"imei": imei}).fetchone()
+            if row and row[1] and not row[1].startswith("unknown"):
+                if row[2] != porta_atual:
+                    conn.execute(text(
+                        "UPDATE modems SET porta_usb = :porta WHERE imei = :imei"
+                    ), {"porta": porta_atual, "imei": imei})
+                    print(f"[Detector] IMEI {imei}: porta atualizada {row[2]} → {porta_atual}")
+                return row[1]
+    except Exception as e:
+        print(f"[Detector] erro ao buscar IMEI {imei}: {e}")
+    return ""
+
+
+def _ussd_all_operators(mm_index: int, imei: str) -> str:
     for operadora, codigo, pattern in _USSD_OPERATORS:
         number = _ussd_query(mm_index, codigo, pattern)
         if number:
-            print(f"[Detector] MM:{mm_index} → {number} ({operadora} via {codigo})")
-            _save_to_db(mm_index, number)
+            print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} ({operadora} via {codigo})")
+            _save_to_db(mm_index, imei, number)
             return number
     return ""
 
@@ -95,22 +116,30 @@ def _ussd_query(mm_index: int, codigo: str, pattern: str) -> str:
 
 
 def _normalize(num: str) -> str:
-    """Garante prefixo 55 (Brasil) e remove +."""
     num = num.lstrip("+")
     if not num.startswith("55"):
         num = "55" + num
     return num
 
 
-def _save_to_db(mm_index: int, number: str):
-    """Persiste o número descoberto para não ter que consultar USSD na próxima vez."""
+def _save_to_db(mm_index: int, imei: str, number: str):
     try:
         from db.repository import _engine as engine
         from sqlalchemy import text
         porta = f"MM:{mm_index}"
         with engine.begin() as conn:
-            conn.execute(text(
-                "UPDATE modems SET numero = :num WHERE porta_usb = :porta"
-            ), {"num": number, "porta": porta})
+            # Upsert por IMEI
+            existing = conn.execute(text(
+                "SELECT id FROM modems WHERE imei = :imei"
+            ), {"imei": imei}).fetchone()
+            if existing:
+                conn.execute(text(
+                    "UPDATE modems SET numero = :num, porta_usb = :porta WHERE imei = :imei"
+                ), {"num": number, "porta": porta, "imei": imei})
+            else:
+                conn.execute(text(
+                    "UPDATE modems SET imei = :imei, numero = :num, porta_usb = :porta "
+                    "WHERE porta_usb = :porta AND imei IS NULL"
+                ), {"imei": imei, "num": number, "porta": porta})
     except Exception as e:
-        print(f"[Detector] erro ao salvar número no banco: {e}")
+        print(f"[Detector] erro ao salvar IMEI {imei}: {e}")

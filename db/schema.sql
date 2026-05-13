@@ -2,6 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS modems (
     id          SERIAL PRIMARY KEY,
+    imei        VARCHAR(20)  UNIQUE,
     porta_usb   VARCHAR(20),
     porta_audio VARCHAR(20),
     numero      VARCHAR(20) NOT NULL,
