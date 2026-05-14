@@ -52,7 +52,7 @@ async def status(request: Request):
             "SELECT COUNT(*) FROM sms_log WHERE criado_em >= CURRENT_DATE"
         )).scalar()
         ultimos_sms = conn.execute(text(
-            "SELECT s.criado_em, m.porta_usb, s.texto_bruto, s.codigo "
+            "SELECT s.criado_em, m.porta_usb, m.numero, s.texto_bruto, s.codigo "
             "FROM sms_log s LEFT JOIN modems m ON m.id = s.modem_id "
             "ORDER BY s.criado_em DESC LIMIT 20"
         )).fetchall()
@@ -67,10 +67,11 @@ async def status(request: Request):
         },
         "ultimos_sms": [
             {
-                "hora": str(r[0])[:19],
-                "porta": r[1] or "?",
-                "texto": r[2],
-                "codigo": r[3],
+                "hora":   str(r[0])[:19],
+                "porta":  r[1] or "?",
+                "numero": r[2] or "?",
+                "texto":  r[3],
+                "codigo": r[4],
             }
             for r in ultimos_sms
         ],
