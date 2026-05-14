@@ -12,6 +12,12 @@ _ALL_SERVICE_CODES = [s["code"] for s in json.loads(_SERVICES_PATH.read_text())]
 
 _pool_instance: Optional["ModemPool"] = None
 
+def _next_activation_id() -> int:
+    from sqlalchemy import text
+    with repo._engine.begin() as conn:
+        return conn.execute(text("SELECT nextval('activation_id_seq')")).scalar()
+
+
 def get_pool() -> "ModemPool":
     return _pool_instance
 
@@ -67,8 +73,8 @@ class ModemPool:
                 # Rejeita números cujo prefixo está na lista de exceções
                 if any(w.number.startswith(str(p)) for p in exception_set):
                     continue
-                # ID numérico sequencial baseado no modem_id
-                activation_id = str(w.modem_id * 100000 + int(__import__('time').time() % 100000))
+                # ID numérico único via sequência do banco
+                activation_id = str(_next_activation_id())
                 w.reserve(activation_id, service)
                 repo.set_modem_status(w.modem_id, "BUSY", activation_id)
                 repo.criar_ativacao(activation_id, w.modem_id, service,

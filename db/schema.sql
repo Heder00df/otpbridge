@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS eventos (
     criado_em   TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
+-- Sequência para activation_id numérico único
+CREATE SEQUENCE IF NOT EXISTS activation_id_seq START 1;
+
 -- Índices para consultas frequentes
 CREATE INDEX IF NOT EXISTS idx_ativacoes_status     ON ativacoes(status);
 CREATE INDEX IF NOT EXISTS idx_ativacoes_modem_id   ON ativacoes(modem_id);
