@@ -1,6 +1,5 @@
 import json
 import threading
-import uuid
 from pathlib import Path
 from typing import Optional
 from modems.base_worker import BaseModemWorker
@@ -54,7 +53,9 @@ class ModemPool:
             "services": {code: free for code in _ALL_SERVICE_CODES},
         }
 
-    def reserve_modem(self, service: str, country: Optional[str]) -> Optional[dict]:
+    def reserve_modem(self, service: str, country: Optional[str],
+                      exception_set: list = None) -> Optional[dict]:
+        exception_set = exception_set or []
         with self.lock:
             for w in self.modems.values():
                 if not w.is_free():
@@ -63,7 +64,11 @@ class ModemPool:
                     continue
                 if not self._is_verified(w.modem_id):
                     continue
-                activation_id = str(uuid.uuid4())
+                # Rejeita números cujo prefixo está na lista de exceções
+                if any(w.number.startswith(str(p)) for p in exception_set):
+                    continue
+                # ID numérico sequencial baseado no modem_id
+                activation_id = str(w.modem_id * 100000 + int(__import__('time').time() % 100000))
                 w.reserve(activation_id, service)
                 repo.set_modem_status(w.modem_id, "BUSY", activation_id)
                 repo.criar_ativacao(activation_id, w.modem_id, service,
@@ -84,16 +89,31 @@ class ModemPool:
         except Exception:
             return False
 
-    def finish_activation(self, activation_id: str, status: int):
-        status_label = "CONCLUIDO" if status == 3 else "CANCELADO"
+    def finish_activation(self, activation_id: str, status: int) -> str:
+        # Mapeamento de status HeroSMS → label interno
+        _STATUS_MAP = {
+            1:  "CANCELADO",     # não fornecer mais números para este serviço
+            3:  "CONCLUIDO",     # vendido com sucesso
+            4:  "CANCELADO",     # cancelado (pode reusar até 4x)
+            5:  "REEMBOLSADO",   # reembolso ao usuário
+            14: "CONCLUIDO",     # aluguel vendido com sucesso
+            15: "CANCELADO",     # aluguel cancelado
+            16: "REEMBOLSADO",   # reembolso de aluguel
+        }
+        status_label = _STATUS_MAP.get(status, "CANCELADO")
+        liberar = status in (3, 4, 5, 14, 15, 16)
+
         with self.lock:
             for w in self.modems.values():
                 if w.activation_id == activation_id:
-                    w.release(status)
-                    repo.set_modem_status(w.modem_id, "FREE")
+                    if liberar:
+                        w.release(status)
+                        repo.set_modem_status(w.modem_id, "FREE")
                     repo.atualizar_ativacao(activation_id, status_label)
-                    repo.log_evento(status_label, w.modem_id, activation_id)
-                    return
+                    repo.log_evento(status_label, w.modem_id, activation_id,
+                                    f"herosms_status={status}")
+                    return "OK"
+        return "NOT_FOUND"
 
     def find_by_line(self, hardware: str, line: int) -> Optional[BaseModemWorker]:
         with self.lock:
