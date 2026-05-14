@@ -130,12 +130,40 @@ async def discovery_status():
 
 
 @router.post("/dashboard/api/redescobrir")
-async def redescobrir():
-    """Força redescoberta de números via USSD em todos os modems."""
+async def redescobrir(request: Request):
+    """
+    Força redescoberta via USSD.
+    forcar=true: ignora cache do banco e refaz USSD em todos os modems.
+    forcar=false (padrão): só descobre modems sem número.
+    """
+    body = {}
     try:
-        from modems.e303.detector import detect_modems
-        result = detect_modems()
-        return {"ok": True, "modems": [{"mm": idx, "number": num} for idx, num, _ in result]}
+        body = await request.json()
+    except Exception:
+        pass
+    forcar = body.get("forcar", False)
+
+    try:
+        from modems.e303.detector import _get_imei, _ussd_all_operators, _get_db_id_by_imei, detect_modems
+        import subprocess, re
+
+        if forcar:
+            result_usb = subprocess.run(["mmcli", "-L"], capture_output=True, text=True)
+            resultados = []
+            for line in result_usb.stdout.splitlines():
+                m = re.search(r"/Modem/(\d+)", line)
+                if not m:
+                    continue
+                idx = int(m.group(1))
+                imei = _get_imei(idx)
+                if not imei:
+                    continue
+                number = _ussd_all_operators(idx, imei)
+                resultados.append({"mm": idx, "number": number or f"unknown-{idx}"})
+            return {"ok": True, "modems": resultados}
+        else:
+            result = detect_modems()
+            return {"ok": True, "modems": [{"mm": idx, "number": num} for idx, num, _ in result]}
     except Exception as e:
         return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
 

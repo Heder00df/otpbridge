@@ -201,7 +201,10 @@
   <div class="section">
     <h2>
       Modems
-      <button class="btn btn-success" onclick="redescobrir()" id="btn-redesc">🔍 Redescobrir Números</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" onclick="redescobrir(false)" id="btn-redesc">🔍 Redescobrir</button>
+        <button class="btn btn-primary" onclick="redescobrir(true)" id="btn-redesc-force" title="Ignora cache e refaz USSD em todos">🔄 Forçar USSD</button>
+      </div>
     </h2>
     <div class="modem-grid" id="modem-list">
       <div style="color:#64748b;font-size:13px;">Carregando...</div>
@@ -361,18 +364,22 @@ async function carregar() {
   }
 }
 
-async function redescobrir() {
-  const btn = document.getElementById('btn-redesc');
+async function redescobrir(forcar = false) {
+  const btn = forcar ? document.getElementById('btn-redesc-force') : document.getElementById('btn-redesc');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⟳</span> Descobrindo...';
+  btn.innerHTML = '<span class="spin">⟳</span> Aguarde...';
   try {
-    const r = await fetch('/dashboard/api/redescobrir', { method: 'POST' });
+    const r = await fetch('/dashboard/api/redescobrir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forcar }),
+    });
     const d = await r.json();
     if (d.ok) { toast(`✔ ${d.modems.length} modems processados`); carregar(); }
     else toast('Erro: ' + d.erro, 'err');
   } catch(e) { toast('Erro de conexão', 'err'); }
   btn.disabled = false;
-  btn.innerHTML = '🔍 Redescobrir Números';
+  btn.innerHTML = forcar ? '🔄 Forçar USSD' : '🔍 Redescobrir';
 }
 
 async function reiniciar() {
