@@ -117,15 +117,19 @@ class E303Worker(BaseModemWorker):
 
     def _handle_sms(self, sms: dict):
         import db.repository as repo
+        import re
         text = sms["text"]
         phone_from = sms.get("number", "unknown")
+
+        # Mensagens de discovery não vão para HeroSMS nem para o log normal
+        from modems.e303.sms_discovery import record_sms
+        if re.search(r"ID:MM\d+", text):
+            record_sms(self.mm_index, phone_from, text)
+            return
+
         code = extract_from_sms(text)
         sms_id = repo.log_sms(self.modem_id, self.activation_id, text, code)
         print(f"[E303 {self.modem_id}] SMS de={phone_from} texto='{text}' codigo={code}")
-
-        # Notifica discovery se estiver ativo
-        from modems.e303.sms_discovery import record_sms
-        record_sms(self.mm_index, phone_from, text)
 
         if not self.activation_id:
             return
