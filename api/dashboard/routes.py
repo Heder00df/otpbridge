@@ -54,7 +54,7 @@ async def status(request: Request):
         ultimos_sms = conn.execute(text(
             "SELECT s.criado_em, m.porta_usb, m.numero, s.texto_bruto, s.codigo "
             "FROM sms_log s LEFT JOIN modems m ON m.id = s.modem_id "
-            "ORDER BY s.criado_em DESC LIMIT 20"
+            "ORDER BY s.criado_em DESC LIMIT 10"
         )).fetchall()
 
     return JSONResponse({
