@@ -120,31 +120,19 @@ def _get_db_id_by_imei(imei: str) -> int:
 
 def _ussd_all_operators(mm_index: int, imei: str) -> str:
     """
-    Tenta todos os códigos USSD de todas as operadoras.
-    Usa o número que apareceu mais vezes (votação por maioria).
-    Se apenas um código responder, usa esse.
+    Tenta TIM → Claro → Vivo → Oi em ordem.
+    Ao primeiro número encontrado, salva e passa pro próximo modem.
     Fallback: CNUM do SIM.
     """
-    votes: dict[str, int] = {}
-    sources: dict[str, list[str]] = {}
-
     for operadora, codigo, pattern in _USSD_OPERATORS:
         # Cancela sessão USSD anterior se houver
         subprocess.run(["mmcli", "-m", str(mm_index), "--3gpp-ussd-cancel"],
                        capture_output=True, timeout=5)
         number = _ussd_query(mm_index, codigo, pattern)
         if number:
-            votes[number] = votes.get(number, 0) + 1
-            sources.setdefault(number, []).append(f"{operadora}({codigo})")
-
-    if votes:
-        # Número com mais votos
-        best = max(votes, key=lambda n: votes[n])
-        confianca = "ALTA" if votes[best] > 1 else "BAIXA"
-        print(f"[Detector] MM:{mm_index} IMEI:{imei} → {best} "
-              f"(confiança {confianca}, fontes: {sources[best]})")
-        _save_to_db(mm_index, imei, best)
-        return best
+            print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} ({operadora} via {codigo})")
+            _save_to_db(mm_index, imei, number)
+            return number
 
     # Fallback: CNUM do SIM
     number = _get_own_number(mm_index)
