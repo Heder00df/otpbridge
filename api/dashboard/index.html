@@ -216,6 +216,22 @@
     </div>
   </div>
 
+  <!-- Discovery via SMS -->
+  <div class="section">
+    <h2>
+      Descoberta de Números via SMS
+      <button class="btn btn-primary" onclick="iniciarDiscovery()" id="btn-discovery">📡 Iniciar Discovery</button>
+    </h2>
+    <div id="discovery-status" style="display:none;">
+      <div style="margin-bottom:12px;font-size:13px;color:#94a3b8;">
+        Receptor: <span id="disc-receptor" style="color:#7c86ff;font-family:monospace;"></span>
+        &nbsp;|&nbsp; Enviados: <span id="disc-sent">0</span>/<span id="disc-total">0</span>
+        &nbsp;|&nbsp; Descobertos: <span id="disc-found">0</span>
+      </div>
+      <div id="disc-results" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+
   <!-- Envio de SMS -->
   <div class="section">
     <h2>Enviar SMS</h2>
@@ -379,6 +395,60 @@ async function salvarConfig() {
     if (d.ok) toast('✔ Salvo — ' + d.aviso);
     else toast('Erro ao salvar', 'err');
   } catch(e) { toast('Erro de conexão', 'err'); }
+}
+
+let _discoveryInterval = null;
+
+async function iniciarDiscovery() {
+  const btn = document.getElementById('btn-discovery');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> Iniciando...';
+
+  try {
+    const r = await fetch('/dashboard/api/discovery/start', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) { toast('Erro: ' + d.erro, 'err'); btn.disabled = false; btn.innerHTML = '📡 Iniciar Discovery'; return; }
+
+    document.getElementById('discovery-status').style.display = 'block';
+    document.getElementById('disc-receptor').textContent = `MM:${d.session.receiver_mm} (${d.session.receiver_number})`;
+    toast('✔ Discovery iniciado — aguardando SMS...');
+
+    if (_discoveryInterval) clearInterval(_discoveryInterval);
+    _discoveryInterval = setInterval(pollDiscovery, 3000);
+  } catch(e) { toast('Erro de conexão', 'err'); }
+
+  btn.innerHTML = '<span class="spin">⟳</span> Em andamento...';
+}
+
+async function pollDiscovery() {
+  try {
+    const r = await fetch('/dashboard/api/discovery/status');
+    const d = await r.json();
+    if (!d.active) return;
+
+    const s = d.session;
+    document.getElementById('disc-sent').textContent  = s.sent;
+    document.getElementById('disc-total').textContent = s.total;
+    document.getElementById('disc-found').textContent = Object.keys(s.results).length;
+
+    document.getElementById('disc-results').innerHTML = Object.entries(s.results).map(([mm, num]) => `
+      <div style="display:flex;gap:12px;align-items:center;background:#12151f;border:1px solid #2d3148;border-radius:8px;padding:8px 14px;font-size:13px;">
+        <span style="color:#7c86ff;font-family:monospace;width:60px;">MM:${mm}</span>
+        <span style="color:#4ade80;font-family:monospace;">${num}</span>
+        <span style="color:#64748b;font-size:11px;">✔ atualizado</span>
+      </div>
+    `).join('');
+
+    if (s.done) {
+      clearInterval(_discoveryInterval);
+      _discoveryInterval = null;
+      const btn = document.getElementById('btn-discovery');
+      btn.disabled = false;
+      btn.innerHTML = '📡 Iniciar Discovery';
+      toast(`✔ Discovery concluído — ${Object.keys(s.results).length}/${s.total} números descobertos`);
+      carregar();
+    }
+  } catch(e) {}
 }
 
 async function enviarSms() {

@@ -88,6 +88,24 @@ async def status(request: Request):
     })
 
 
+@router.post("/dashboard/api/discovery/start")
+async def discovery_start(request: Request):
+    pool = getattr(request.app.state, "modem_pool", None)
+    if not pool:
+        return JSONResponse({"ok": False, "erro": "Pool não iniciado."}, status_code=500)
+    from modems.e303.sms_discovery import start_discovery
+    return start_discovery(pool)
+
+
+@router.get("/dashboard/api/discovery/status")
+async def discovery_status():
+    from modems.e303.sms_discovery import get_session
+    s = get_session()
+    if not s:
+        return {"active": False}
+    return {"active": True, "session": s.to_dict()}
+
+
 @router.post("/dashboard/api/redescobrir")
 async def redescobrir():
     """Força redescoberta de números via USSD em todos os modems."""

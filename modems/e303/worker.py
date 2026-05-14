@@ -122,6 +122,11 @@ class E303Worker(BaseModemWorker):
         code = extract_from_sms(text)
         sms_id = repo.log_sms(self.modem_id, self.activation_id, text, code)
         print(f"[E303 {self.modem_id}] SMS de={phone_from} texto='{text}' codigo={code}")
+
+        # Notifica discovery se estiver ativo
+        from modems.e303.sms_discovery import record_sms
+        record_sms(self.mm_index, phone_from, text)
+
         if not self.activation_id:
             return
         repo.atualizar_ativacao(self.activation_id, "SMS_RECEBIDO", "SMS", code)
