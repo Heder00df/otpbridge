@@ -52,6 +52,10 @@ async def status(request: Request):
             except Exception:
                 pass
 
+            # Oculta modems não verificados das listagens
+            if not verificado:
+                continue
+
             modems.append({
                 "modem_id":   w.modem_id,
                 "mm_index":   w.mm_index,
