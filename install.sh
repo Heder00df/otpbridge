@@ -192,6 +192,19 @@ udevadm control --reload-rules
 udevadm trigger
 ok "Regras udev instaladas"
 
+# ── PolicyKit — autoriza usuário otpbridge no ModemManager ──
+info "Configurando permissões PolicyKit..."
+cat > /etc/polkit-1/rules.d/50-otpbridge-modemmanager.rules << EOF
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.ModemManager1") === 0 &&
+        subject.user === "$SERVICE_USER") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+systemctl restart polkit 2>/dev/null || true
+ok "PolicyKit configurado"
+
 # ── ModemManager ──────────────────────────────────────────
 info "Habilitando ModemManager..."
 systemctl enable ModemManager -q
