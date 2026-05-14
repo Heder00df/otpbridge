@@ -49,25 +49,32 @@ def start_discovery(pool) -> dict:
         if _session and not _session.done:
             return {"ok": False, "erro": "Discovery já em andamento."}
 
-        # Escolhe receptor: modem FREE com maior sinal
+        # Escolhe receptor: modem FREE com maior sinal (mínimo 20%)
         best = None
         best_signal = -1
         for w in pool.modems.values():
             if w.number.startswith("unknown"):
                 continue
+            if w.status not in ("FREE", "BUSY"):
+                continue
             sig = _get_signal(w.mm_index)
-            if sig > best_signal:
+            if sig >= 20 and sig > best_signal:
                 best_signal = sig
                 best = w
 
         if not best:
-            return {"ok": False, "erro": "Nenhum modem disponível como receptor."}
+            return {"ok": False, "erro": "Nenhum modem FREE com sinal >= 20% disponível como receptor."}
 
-        targets = [
-            {"mm_index": w.mm_index, "number": w.number}
-            for w in pool.modems.values()
-            if w.modem_id != best.modem_id and not w.number.startswith("unknown")
-        ]
+        # Alvos: todos com sinal > 0, exceto o receptor
+        targets = []
+        for w in pool.modems.values():
+            if w.modem_id == best.modem_id:
+                continue
+            if w.number.startswith("unknown"):
+                continue
+            sig = _get_signal(w.mm_index)
+            if sig > 0:
+                targets.append({"mm_index": w.mm_index, "number": w.number})
 
         if not targets:
             return {"ok": False, "erro": "Nenhum modem para enviar."}
