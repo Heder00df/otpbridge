@@ -17,6 +17,7 @@ async def dashboard():
 @router.get("/dashboard/api/status")
 async def status(request: Request):
     pool = getattr(request.app.state, "modem_pool", None)
+    from db.repository import _engine as engine
     modems = []
     if pool:
         import re as _re
