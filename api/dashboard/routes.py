@@ -89,6 +89,44 @@ async def redescobrir():
         return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
 
 
+@router.post("/dashboard/api/enviar-sms")
+async def enviar_sms(request: Request):
+    body = await request.json()
+    mm_index = body.get("mm_index")
+    destino  = str(body.get("destino", "")).strip()
+    texto    = str(body.get("texto", "")).strip().replace(" ", "-")
+
+    if not mm_index or not destino or not texto:
+        return JSONResponse({"ok": False, "erro": "Campos obrigatórios: mm_index, destino, texto"}, status_code=400)
+
+    # Garante prefixo +55
+    if not destino.startswith("+"):
+        destino = f"+55{destino}" if not destino.startswith("55") else f"+{destino}"
+
+    try:
+        # Cria SMS via mmcli
+        r = subprocess.run(
+            ["mmcli", "-m", str(mm_index),
+             f"--messaging-create-sms=number={destino},text={texto}"],
+            capture_output=True, text=True, timeout=10
+        )
+        import re
+        sms_obj = re.search(r"/org/freedesktop/ModemManager1/SMS/\d+", r.stdout)
+        if not sms_obj:
+            return JSONResponse({"ok": False, "erro": r.stderr or "Falha ao criar SMS"}, status_code=500)
+
+        # Envia
+        s = subprocess.run(
+            ["mmcli", "--sms", sms_obj.group(), "--send"],
+            capture_output=True, text=True, timeout=15
+        )
+        if "successfully" in s.stdout:
+            return {"ok": True}
+        return JSONResponse({"ok": False, "erro": s.stderr or s.stdout}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
+
+
 @router.post("/dashboard/api/reiniciar")
 async def reiniciar():
     """Reinicia o serviço OTPBridge via systemctl."""

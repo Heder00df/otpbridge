@@ -213,6 +213,30 @@
     </div>
   </div>
 
+  <!-- Envio de SMS -->
+  <div class="section">
+    <h2>Enviar SMS</h2>
+    <div class="config-form">
+      <div class="config-row">
+        <label>Modem (MM:X)</label>
+        <select id="sms-modem" style="flex:1;background:#12151f;border:1px solid #2d3148;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label>Destino</label>
+        <input type="text" id="sms-destino" placeholder="55619999xxxxx">
+      </div>
+      <div class="config-row">
+        <label>Texto</label>
+        <input type="text" id="sms-texto" placeholder="Mensagem de teste">
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="enviarSms()" id="btn-enviar">📤 Enviar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Config -->
   <div class="section">
     <h2>Configurações</h2>
@@ -257,6 +281,15 @@ function renderModems(modems) {
       <span class="badge ${m.status}">${m.status}</span>
     </div>
   `).join('');
+
+  // Popula select de modems para envio
+  const sel = document.getElementById('sms-modem');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Selecione...</option>' +
+    modems.filter(m => !m.number.startsWith('unknown')).map(m =>
+      `<option value="${m.mm_index}">${'MM:'+m.mm_index} — ${m.number}</option>`
+    ).join('');
+  if (prev) sel.value = prev;
 }
 
 function renderSms(list) {
@@ -339,6 +372,33 @@ async function salvarConfig() {
     if (d.ok) toast('✔ Salvo — ' + d.aviso);
     else toast('Erro ao salvar', 'err');
   } catch(e) { toast('Erro de conexão', 'err'); }
+}
+
+async function enviarSms() {
+  const mm    = document.getElementById('sms-modem').value;
+  const dest  = document.getElementById('sms-destino').value.trim();
+  const texto = document.getElementById('sms-texto').value.trim();
+  if (!mm || !dest || !texto) { toast('Preencha todos os campos', 'err'); return; }
+
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> Enviando...';
+  try {
+    const r = await fetch('/dashboard/api/enviar-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mm_index: parseInt(mm), destino: dest, texto }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('✔ SMS enviado');
+      document.getElementById('sms-texto').value = '';
+    } else {
+      toast('Erro: ' + d.erro, 'err');
+    }
+  } catch(e) { toast('Erro de conexão', 'err'); }
+  btn.disabled = false;
+  btn.innerHTML = '📤 Enviar';
 }
 
 carregar();
