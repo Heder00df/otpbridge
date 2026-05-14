@@ -132,26 +132,40 @@ async def enviar_sms(request: Request):
         destino = f"+55{destino}" if not destino.startswith("55") else f"+{destino}"
 
     try:
+        import re as _re
+        import traceback
+
         # Cria SMS via mmcli
         r = subprocess.run(
             ["mmcli", "-m", str(mm_index),
              f"--messaging-create-sms=number={destino},text={texto}"],
             capture_output=True, text=True, timeout=10
         )
-        import re
-        sms_obj = re.search(r"/org/freedesktop/ModemManager1/SMS/\d+", r.stdout)
+        print(f"[SMS] create stdout: {r.stdout!r}")
+        print(f"[SMS] create stderr: {r.stderr!r}")
+        print(f"[SMS] create returncode: {r.returncode}")
+
+        sms_obj = _re.search(r"/org/freedesktop/ModemManager1/SMS/\d+", r.stdout)
         if not sms_obj:
-            return JSONResponse({"ok": False, "erro": r.stderr or "Falha ao criar SMS"}, status_code=500)
+            erro = r.stderr.strip() or r.stdout.strip() or "Falha ao criar SMS (sem output)"
+            print(f"[SMS] ERRO criar: {erro}")
+            return JSONResponse({"ok": False, "erro": erro}, status_code=500)
 
         # Envia
         s = subprocess.run(
             ["mmcli", "--sms", sms_obj.group(), "--send"],
             capture_output=True, text=True, timeout=15
         )
+        print(f"[SMS] send stdout: {s.stdout!r}")
+        print(f"[SMS] send stderr: {s.stderr!r}")
+        print(f"[SMS] send returncode: {s.returncode}")
+
         if "successfully" in s.stdout:
             return {"ok": True}
-        return JSONResponse({"ok": False, "erro": s.stderr or s.stdout}, status_code=500)
+        erro = s.stderr.strip() or s.stdout.strip() or "Falha ao enviar SMS"
+        return JSONResponse({"ok": False, "erro": erro}, status_code=500)
     except Exception as e:
+        print(f"[SMS] EXCEPTION: {traceback.format_exc()}")
         return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
 
 
