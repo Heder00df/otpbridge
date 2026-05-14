@@ -57,7 +57,7 @@
   .modem-grid { display: flex; flex-direction: column; gap: 8px; }
   .modem-row {
     display: grid;
-    grid-template-columns: 70px 160px 1fr 90px 70px;
+    grid-template-columns: 70px 160px 140px 1fr 70px;
     align-items: center;
     background: #12151f;
     border: 1px solid #2d3148;
@@ -65,8 +65,11 @@
     padding: 10px 14px;
     gap: 12px;
   }
-  .modem-port { font-size: 12px; color: #64748b; font-family: monospace; }
-  .modem-num  { font-size: 13px; font-weight: 500; }
+  .modem-port  { font-size: 12px; color: #64748b; font-family: monospace; }
+  .modem-num   { font-size: 13px; font-weight: 500; }
+  .modem-usb   { display: flex; flex-direction: column; gap: 2px; }
+  .modem-usb .usb { font-size: 11px; color: #f59e0b; font-family: monospace; }
+  .modem-usb .tty { font-size: 11px; color: #64748b; font-family: monospace; }
   .signal-bar { display: flex; align-items: center; gap: 8px; }
   .signal-bar .bar {
     flex: 1; height: 6px; background: #2d3148; border-radius: 3px; overflow: hidden;
@@ -171,7 +174,7 @@
   @media (max-width: 700px) {
     .stats { grid-template-columns: repeat(2, 1fr); }
     .modem-row { grid-template-columns: 60px 1fr 70px; }
-    .modem-row .signal-bar, .modem-row .modem-num { display: none; }
+    .modem-row .signal-bar, .modem-row .modem-num, .modem-row .modem-usb { display: none; }
     .sms-row { grid-template-columns: 60px 1fr 70px; }
     .sms-row .sms-modem { display: none; }
   }
@@ -274,6 +277,10 @@ function renderModems(modems) {
     <div class="modem-row">
       <span class="modem-port">MM:${m.mm_index}</span>
       <span class="modem-num">${m.number}</span>
+      <div class="modem-usb">
+        <span class="usb">${m.usb_port || '—'}</span>
+        <span class="tty">${m.tty_port || '—'}</span>
+      </div>
       <div class="signal-bar">
         <div class="bar"><div class="fill" style="width:${m.signal}%;background:${signalColor(m.signal)}"></div></div>
         <span class="pct">${m.signal}%</span>

@@ -19,8 +19,11 @@ async def status(request: Request):
     pool = getattr(request.app.state, "modem_pool", None)
     modems = []
     if pool:
+        import re as _re
         for w in pool.modems.values():
             signal = 0
+            usb_port = ""
+            tty_port = ""
             try:
                 r = subprocess.run(
                     ["mmcli", "-m", str(w.mm_index)],
@@ -28,18 +31,25 @@ async def status(request: Request):
                 )
                 for line in r.stdout.splitlines():
                     if "signal quality:" in line:
-                        import re
-                        m = re.search(r"(\d+)%", line)
+                        m = _re.search(r"(\d+)%", line)
                         if m:
                             signal = int(m.group(1))
+                    if "device:" in line and "sys/devices" in line:
+                        m = _re.search(r"usb\d+/([0-9\-\.]+)$", line)
+                        if m:
+                            usb_port = m.group(1)
+                    if "primary port:" in line:
+                        tty_port = line.split("primary port:")[-1].strip()
             except Exception:
                 pass
             modems.append({
-                "modem_id": w.modem_id,
-                "mm_index": w.mm_index,
-                "number":   w.number,
-                "status":   w.status,
-                "signal":   signal,
+                "modem_id":  w.modem_id,
+                "mm_index":  w.mm_index,
+                "number":    w.number,
+                "status":    w.status,
+                "signal":    signal,
+                "usb_port":  usb_port,
+                "tty_port":  tty_port,
                 "activation_id": w.activation_id,
             })
 
