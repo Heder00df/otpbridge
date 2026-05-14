@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS modems (
     porta_audio VARCHAR(20),
     numero      VARCHAR(20) NOT NULL,
     hardware    VARCHAR(20) NOT NULL DEFAULT 'e303',  -- e303 | goip | openvox
-    suporta_voz BOOLEAN     NOT NULL DEFAULT FALSE,
+    suporta_voz        BOOLEAN NOT NULL DEFAULT FALSE,
+    numero_verificado  BOOLEAN NOT NULL DEFAULT FALSE,
     status      VARCHAR(20) NOT NULL DEFAULT 'OFFLINE', -- OFFLINE | FREE | BUSY | ERROR
     ativacao_id VARCHAR(50),
     criado_em   TIMESTAMP   NOT NULL DEFAULT NOW(),

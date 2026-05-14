@@ -57,16 +57,32 @@ class ModemPool:
     def reserve_modem(self, service: str, country: Optional[str]) -> Optional[dict]:
         with self.lock:
             for w in self.modems.values():
-                if w.is_free() and not w.number.startswith("unknown"):
-                    activation_id = str(uuid.uuid4())
-                    w.reserve(activation_id, service)
-                    repo.set_modem_status(w.modem_id, "BUSY", activation_id)
-                    repo.criar_ativacao(activation_id, w.modem_id, service,
-                                        w.number, pais=country)
-                    repo.log_evento("ATIVACAO_CRIADA", w.modem_id, activation_id,
-                                    f"servico={service} pais={country}")
-                    return {"activation_id": activation_id, "number": w.number}
+                if not w.is_free():
+                    continue
+                if w.number.startswith("unknown"):
+                    continue
+                if not self._is_verified(w.modem_id):
+                    continue
+                activation_id = str(uuid.uuid4())
+                w.reserve(activation_id, service)
+                repo.set_modem_status(w.modem_id, "BUSY", activation_id)
+                repo.criar_ativacao(activation_id, w.modem_id, service,
+                                    w.number, pais=country)
+                repo.log_evento("ATIVACAO_CRIADA", w.modem_id, activation_id,
+                                f"servico={service} pais={country}")
+                return {"activation_id": activation_id, "number": w.number}
         return None
+
+    def _is_verified(self, modem_id: int) -> bool:
+        try:
+            from sqlalchemy import text
+            with repo._engine.connect() as conn:
+                row = conn.execute(text(
+                    "SELECT numero_verificado FROM modems WHERE id = :id"
+                ), {"id": modem_id}).fetchone()
+                return bool(row and row[0])
+        except Exception:
+            return False
 
     def finish_activation(self, activation_id: str, status: int):
         status_label = "CONCLUIDO" if status == 3 else "CANCELADO"

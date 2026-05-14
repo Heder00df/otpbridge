@@ -134,11 +134,11 @@ def _ussd_all_operators(mm_index: int, imei: str) -> str:
             _save_to_db(mm_index, imei, number)
             return number
 
-    # Fallback: CNUM do SIM
+    # Fallback: CNUM do SIM — não verificado
     number = _get_own_number(mm_index)
     if number:
-        print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} (CNUM fallback)")
-        _save_to_db(mm_index, imei, number)
+        print(f"[Detector] MM:{mm_index} IMEI:{imei} → {number} (CNUM fallback — não verificado)")
+        _save_to_db(mm_index, imei, number, verificado=False)
         return number
 
     return ""
@@ -165,17 +165,30 @@ def _normalize(num: str) -> str:
     return num
 
 
-def _save_to_db(mm_index: int, imei: str, number: str):
+def _save_to_db(mm_index: int, imei: str, number: str, verificado: bool = True):
     try:
         from db.repository import _engine as engine
         from sqlalchemy import text
         porta = f"MM:{mm_index}"
         with engine.begin() as conn:
-            # Tenta atualizar por IMEI primeiro
-            r = conn.execute(text(
-                "UPDATE modems SET numero = :num, porta_usb = :porta WHERE imei = :imei"
-            ), {"num": number, "porta": porta, "imei": imei})
-            if r.rowcount > 0:
+            existing = conn.execute(text(
+                "SELECT id, numero FROM modems WHERE imei = :imei"
+            ), {"imei": imei}).fetchone()
+
+            if existing:
+                old_number = existing[1]
+                if old_number == number:
+                    # Número igual — só atualiza porta e marca verificado se ainda não estava
+                    conn.execute(text(
+                        "UPDATE modems SET porta_usb = :porta, numero_verificado = :v WHERE imei = :imei"
+                    ), {"porta": porta, "v": verificado, "imei": imei})
+                else:
+                    # Número mudou — atualiza e marca verificado
+                    print(f"[Detector] MM:{mm_index} número atualizado: {old_number} → {number}")
+                    conn.execute(text(
+                        "UPDATE modems SET numero = :num, porta_usb = :porta, "
+                        "numero_verificado = :v WHERE imei = :imei"
+                    ), {"num": number, "porta": porta, "v": verificado, "imei": imei})
                 return
 
             # Aproveita registro órfão se existir
@@ -184,18 +197,18 @@ def _save_to_db(mm_index: int, imei: str, number: str):
             )).fetchone()
             if orphan:
                 conn.execute(text(
-                    "UPDATE modems SET imei = :imei, numero = :num, porta_usb = :porta "
-                    "WHERE id = :id"
-                ), {"imei": imei, "num": number, "porta": porta, "id": orphan[0]})
+                    "UPDATE modems SET imei = :imei, numero = :num, porta_usb = :porta, "
+                    "numero_verificado = :v WHERE id = :id"
+                ), {"imei": imei, "num": number, "porta": porta, "v": verificado, "id": orphan[0]})
                 return
 
-            # Insere novo — corrige a sequência antes para evitar conflito de PK
+            # Insere novo — corrige sequência antes
             conn.execute(text(
                 "SELECT setval('modems_id_seq', (SELECT MAX(id) FROM modems))"
             ))
             conn.execute(text(
-                "INSERT INTO modems (imei, porta_usb, numero, hardware, suporta_voz) "
-                "VALUES (:imei, :porta, :num, 'e303', false)"
-            ), {"imei": imei, "porta": porta, "num": number})
+                "INSERT INTO modems (imei, porta_usb, numero, hardware, suporta_voz, numero_verificado) "
+                "VALUES (:imei, :porta, :num, 'e303', false, :v)"
+            ), {"imei": imei, "porta": porta, "num": number, "v": verificado})
     except Exception as e:
         print(f"[Detector] erro ao salvar IMEI {imei}: {e}")

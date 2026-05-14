@@ -42,14 +42,25 @@ async def status(request: Request):
                         tty_port = line.split("primary port:")[-1].strip()
             except Exception:
                 pass
+            verificado = False
+            try:
+                with engine.connect() as c:
+                    row = c.execute(text(
+                        "SELECT numero_verificado FROM modems WHERE id = :id"
+                    ), {"id": w.modem_id}).fetchone()
+                    verificado = bool(row and row[0])
+            except Exception:
+                pass
+
             modems.append({
-                "modem_id":  w.modem_id,
-                "mm_index":  w.mm_index,
-                "number":    w.number,
-                "status":    w.status,
-                "signal":    signal,
-                "usb_port":  usb_port,
-                "tty_port":  tty_port,
+                "modem_id":   w.modem_id,
+                "mm_index":   w.mm_index,
+                "number":     w.number,
+                "status":     w.status,
+                "signal":     signal,
+                "usb_port":   usb_port,
+                "tty_port":   tty_port,
+                "verificado": verificado,
                 "activation_id": w.activation_id,
             })
 
