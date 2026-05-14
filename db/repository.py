@@ -26,8 +26,8 @@ def upsert_modem(modem_id: int, numero: str, hardware: str,
                  suporta_voz: bool = False) -> None:
     with session() as s:
         s.execute(text("""
-            INSERT INTO modems (id, numero, hardware, porta_usb, porta_audio, suporta_voz, status)
-            VALUES (:id, :numero, :hardware, :porta_usb, :porta_audio, :suporta_voz, 'FREE')
+            INSERT INTO modems (id, numero, hardware, porta_usb, porta_audio, suporta_voz, status, numero_verificado)
+            VALUES (:id, :numero, :hardware, :porta_usb, :porta_audio, :suporta_voz, 'FREE', FALSE)
             ON CONFLICT (id) DO UPDATE
               SET numero      = CASE
                                   WHEN modems.numero LIKE 'unknown%' THEN EXCLUDED.numero

@@ -37,9 +37,12 @@ def create_workers(hardware_type: str, devices: list, on_otp: Callable) -> list[
         found = detect_modems() if not devices else [
             (d["mm_index"], d.get("number", "unknown"), 0) for d in devices
         ]
-        for i, (mm_index, number, db_id) in enumerate(found):
+        for mm_index, number, db_id in found:
+            if not db_id:
+                print(f"[Factory] MM:{mm_index} sem db_id — ignorado")
+                continue
             workers.append(E303Worker(
-                modem_id=db_id if db_id else i + 1,
+                modem_id=db_id,
                 mm_index=mm_index,
                 number=number,
                 on_otp=on_otp,
