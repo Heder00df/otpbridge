@@ -151,19 +151,23 @@ async def enviar_sms(request: Request):
             print(f"[SMS] ERRO criar: {erro}")
             return JSONResponse({"ok": False, "erro": erro}, status_code=500)
 
-        # Envia
-        s = subprocess.run(
-            ["mmcli", "--sms", sms_obj.group(), "--send"],
-            capture_output=True, text=True, timeout=15
-        )
-        print(f"[SMS] send stdout: {s.stdout!r}")
-        print(f"[SMS] send stderr: {s.stderr!r}")
-        print(f"[SMS] send returncode: {s.returncode}")
+        # Envia em background para não travar a requisição
+        sms_path = sms_obj.group()
+        def _send():
+            try:
+                s = subprocess.run(
+                    ["mmcli", "--sms", sms_path, "--send"],
+                    capture_output=True, text=True, timeout=60
+                )
+                print(f"[SMS] send stdout: {s.stdout!r}")
+                print(f"[SMS] send stderr: {s.stderr!r}")
+                print(f"[SMS] send returncode: {s.returncode}")
+            except Exception as ex:
+                print(f"[SMS] send erro: {ex}")
 
-        if "successfully" in s.stdout:
-            return {"ok": True}
-        erro = s.stderr.strip() or s.stdout.strip() or "Falha ao enviar SMS"
-        return JSONResponse({"ok": False, "erro": erro}, status_code=500)
+        import threading
+        threading.Thread(target=_send, daemon=True).start()
+        return {"ok": True}
     except Exception as e:
         print(f"[SMS] EXCEPTION: {traceback.format_exc()}")
         return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
