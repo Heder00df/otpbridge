@@ -12,11 +12,11 @@ _USSD_OPERATORS = [
 ]
 
 
-def detect_modems() -> list[tuple[int, str]]:
+def detect_modems() -> list[tuple[int, str, int]]:
     """
-    Retorna lista de (mm_index, number) para todos os modems detectados.
+    Retorna lista de (mm_index, number, db_id) para todos os modems detectados.
     Usa IMEI como chave estável — o índice MM:X pode mudar a cada restart,
-    mas o IMEI é fixo no hardware.
+    mas o IMEI é fixo no hardware. db_id é o id real na tabela modems.
     """
     result = subprocess.run(["mmcli", "-L"], capture_output=True, text=True)
     modems = []
@@ -25,14 +25,14 @@ def detect_modems() -> list[tuple[int, str]]:
         if not m:
             continue
         idx = int(m.group(1))
-        number = _get_number_for_modem(idx)
-        modems.append((idx, number))
+        number, db_id = _get_number_and_id_for_modem(idx)
+        modems.append((idx, number, db_id))
     return modems
 
 
-def _get_number_for_modem(mm_index: int) -> str:
+def _get_number_and_id_for_modem(mm_index: int) -> tuple[str, int]:
     """
-    Resolve o número do modem usando IMEI como chave estável.
+    Resolve o número e o db_id do modem usando IMEI como chave estável.
     Fluxo:
       1. Lê IMEI do modem via mmcli
       2. Busca no banco pelo IMEI — se achou, atualiza porta_usb e retorna número
@@ -42,20 +42,19 @@ def _get_number_for_modem(mm_index: int) -> str:
     """
     imei = _get_imei(mm_index)
     if not imei:
-        return f"unknown-{mm_index}"
+        return f"unknown-{mm_index}", 0
 
-    # Atualiza porta_usb para o índice atual (MM pode ter mudado)
     porta = f"MM:{mm_index}"
-    number = _lookup_by_imei(imei, porta)
+    number, db_id = _lookup_by_imei(imei, porta)
     if number:
-        return number
+        return number, db_id
 
-    # Número não está no banco — descobrir via USSD
     number = _ussd_all_operators(mm_index, imei)
     if number:
-        return number
+        db_id = _get_db_id_by_imei(imei)
+        return number, db_id
 
-    return f"unknown-{mm_index}"
+    return f"unknown-{mm_index}", 0
 
 
 def _get_imei(mm_index: int) -> str:
@@ -100,10 +99,23 @@ def _lookup_by_imei(imei: str, porta_atual: str) -> str:
                         "UPDATE modems SET porta_usb = :porta WHERE imei = :imei"
                     ), {"porta": porta_atual, "imei": imei})
                     print(f"[Detector] IMEI {imei}: porta atualizada {row[2]} → {porta_atual}")
-                return row[1]
+                return row[1], row[0]
     except Exception as e:
         print(f"[Detector] erro ao buscar IMEI {imei}: {e}")
-    return ""
+    return "", 0
+
+
+def _get_db_id_by_imei(imei: str) -> int:
+    try:
+        from db.repository import _engine as engine
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            row = conn.execute(text(
+                "SELECT id FROM modems WHERE imei = :imei"
+            ), {"imei": imei}).fetchone()
+            return row[0] if row else 0
+    except Exception:
+        return 0
 
 
 def _ussd_all_operators(mm_index: int, imei: str) -> str:
