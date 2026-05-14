@@ -94,7 +94,7 @@ async def redescobrir():
     try:
         from modems.e303.detector import detect_modems
         result = detect_modems()
-        return {"ok": True, "modems": [{"mm": idx, "number": num} for idx, num in result]}
+        return {"ok": True, "modems": [{"mm": idx, "number": num} for idx, num, _ in result]}
     except Exception as e:
         return JSONResponse({"ok": False, "erro": str(e)}, status_code=500)
 
