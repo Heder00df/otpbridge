@@ -218,10 +218,16 @@
 
   <!-- Discovery via SMS -->
   <div class="section">
-    <h2>
-      Descoberta de Números via SMS
-      <button class="btn btn-primary" onclick="iniciarDiscovery()" id="btn-discovery">📡 Iniciar Discovery</button>
-    </h2>
+    <h2>Descoberta de Números via SMS</h2>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+      <input type="text" id="disc-external" placeholder="Seu número pessoal (opcional): 61999342035"
+        style="flex:1;background:#12151f;border:1px solid #2d3148;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;">
+      <button class="btn btn-primary" onclick="iniciarDiscovery()" id="btn-discovery">📡 Iniciar</button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px;">
+      Com número pessoal: cada modem envia SMS para você — confirme os números que chegaram.<br>
+      Sem número: usa o modem com melhor sinal como receptor automaticamente.
+    </div>
     <div id="discovery-status" style="display:none;">
       <div style="margin-bottom:12px;font-size:13px;color:#94a3b8;">
         Receptor: <span id="disc-receptor" style="color:#7c86ff;font-family:monospace;"></span>
@@ -405,12 +411,20 @@ async function iniciarDiscovery() {
   btn.innerHTML = '<span class="spin">⟳</span> Iniciando...';
 
   try {
-    const r = await fetch('/dashboard/api/discovery/start', { method: 'POST' });
+    const external = document.getElementById('disc-external').value.trim();
+  const r = await fetch('/dashboard/api/discovery/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ external_number: external }),
+  });
     const d = await r.json();
     if (!d.ok) { toast('Erro: ' + d.erro, 'err'); btn.disabled = false; btn.innerHTML = '📡 Iniciar Discovery'; return; }
 
     document.getElementById('discovery-status').style.display = 'block';
-    document.getElementById('disc-receptor').textContent = `MM:${d.session.receiver_mm} (${d.session.receiver_number})`;
+    const rec = d.session.receiver_mm === -1
+      ? `Externo: ${d.session.receiver_number}`
+      : `MM:${d.session.receiver_mm} (${d.session.receiver_number})`;
+    document.getElementById('disc-receptor').textContent = rec;
     toast('✔ Discovery iniciado — aguardando SMS...');
 
     if (_discoveryInterval) clearInterval(_discoveryInterval);

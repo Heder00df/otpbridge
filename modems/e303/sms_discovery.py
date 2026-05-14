@@ -43,33 +43,21 @@ class DiscoverySession:
         }
 
 
-def start_discovery(pool) -> dict:
+def start_discovery(pool, external_number: str = "") -> dict:
+    """
+    Se external_number informado: todos os modems enviam SMS para esse número externo.
+    O usuário reporta quais chegaram via /discovery/report.
+
+    Se vazio: usa o modem com melhor sinal como receptor interno.
+    """
     global _session
     with _lock:
         if _session and not _session.done:
             return {"ok": False, "erro": "Discovery já em andamento."}
 
-        # Escolhe receptor: modem FREE com maior sinal (mínimo 20%)
-        best = None
-        best_signal = -1
-        for w in pool.modems.values():
-            if w.number.startswith("unknown"):
-                continue
-            if w.status not in ("FREE", "BUSY"):
-                continue
-            sig = _get_signal(w.mm_index)
-            if sig >= 20 and sig > best_signal:
-                best_signal = sig
-                best = w
-
-        if not best:
-            return {"ok": False, "erro": "Nenhum modem FREE com sinal >= 20% disponível como receptor."}
-
-        # Alvos: todos com sinal > 0, exceto o receptor
+        # Alvos: modems com sinal > 0
         targets = []
         for w in pool.modems.values():
-            if w.modem_id == best.modem_id:
-                continue
             if w.number.startswith("unknown"):
                 continue
             sig = _get_signal(w.mm_index)
@@ -77,17 +65,44 @@ def start_discovery(pool) -> dict:
                 targets.append({"mm_index": w.mm_index, "number": w.number})
 
         if not targets:
-            return {"ok": False, "erro": "Nenhum modem para enviar."}
+            return {"ok": False, "erro": "Nenhum modem com sinal disponível."}
 
-        _session = DiscoverySession(
-            receiver_mm=best.mm_index,
-            receiver_number=best.number,
-            targets=targets,
-        )
+        if external_number:
+            # Modo externo: envia para número do usuário
+            num = external_number.strip().lstrip("+")
+            if not num.startswith("55"):
+                num = "55" + num
+            _session = DiscoverySession(
+                receiver_mm=-1,
+                receiver_number=num,
+                targets=targets,
+            )
+            _session.mode = "external"
+        else:
+            # Modo interno: escolhe modem FREE com maior sinal (mínimo 20%)
+            best = None
+            best_signal = -1
+            for w in pool.modems.values():
+                if w.number.startswith("unknown"):
+                    continue
+                if w.status not in ("FREE", "BUSY"):
+                    continue
+                sig = _get_signal(w.mm_index)
+                if sig >= 20 and sig > best_signal:
+                    best_signal = sig
+                    best = w
 
-        # Inicia envios em background
+            if not best:
+                return {"ok": False, "erro": "Nenhum modem FREE com sinal >= 20%. Informe um número externo."}
+
+            _session = DiscoverySession(
+                receiver_mm=best.mm_index,
+                receiver_number=best.number,
+                targets=[t for t in targets if t["mm_index"] != best.mm_index],
+            )
+            _session.mode = "internal"
+
         threading.Thread(target=_run_discovery, args=(_session,), daemon=True).start()
-
         return {"ok": True, "session": _session.to_dict()}
 
 

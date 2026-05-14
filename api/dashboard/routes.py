@@ -93,8 +93,31 @@ async def discovery_start(request: Request):
     pool = getattr(request.app.state, "modem_pool", None)
     if not pool:
         return JSONResponse({"ok": False, "erro": "Pool não iniciado."}, status_code=500)
+    body = await request.json()
+    external = body.get("external_number", "")
     from modems.e303.sms_discovery import start_discovery
-    return start_discovery(pool)
+    return start_discovery(pool, external_number=external)
+
+
+@router.post("/dashboard/api/discovery/report")
+async def discovery_report(request: Request):
+    """Modo externo: usuário informa quais números chegaram no celular."""
+    body = await request.json()
+    # [{mm_index: 4, number: "5511999990001"}, ...]
+    reports = body.get("reports", [])
+    from modems.e303.sms_discovery import get_session, _save_number
+    s = get_session()
+    if not s:
+        return JSONResponse({"ok": False, "erro": "Nenhuma sessão ativa."}, status_code=400)
+    for r in reports:
+        mm = int(r["mm_index"])
+        num = str(r["number"]).strip().lstrip("+")
+        if not num.startswith("55"):
+            num = "55" + num
+        s.results[str(mm)] = num
+        _save_number(mm, num)
+    s.done = True
+    return {"ok": True, "atualizados": len(reports)}
 
 
 @router.get("/dashboard/api/discovery/status")
