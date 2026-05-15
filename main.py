@@ -4,15 +4,26 @@ from fastapi import FastAPI
 from api.supplier import router as supplier_router
 from api.dashboard.routes import router as dashboard_router
 
-app = FastAPI(title="OTPBridge Supplier API")
-app.include_router(supplier_router)
-app.include_router(dashboard_router)
+# Swagger visível apenas em desenvolvimento
+_dev_mode = os.getenv("DEV", "false").lower() == "true"
 
-# Webhooks de hardware de rede (GoIP / OpenVox)
+app = FastAPI(
+    title="OTPBridge Supplier API",
+    docs_url="/docs" if _dev_mode else None,
+    redoc_url="/redoc" if _dev_mode else None,
+    openapi_url="/openapi.json" if _dev_mode else None,
+)
+
+# Endpoint público — HeroSMS chama este
+app.include_router(supplier_router)
+
+# Endpoints internos — ocultos do Swagger
+app.include_router(dashboard_router, include_in_schema=False)
+
 from modems.goip.webhook import goip_router
 from modems.openvox.webhook import openvox_router
-app.include_router(goip_router)
-app.include_router(openvox_router)
+app.include_router(goip_router, include_in_schema=False)
+app.include_router(openvox_router, include_in_schema=False)
 
 pool = None
 
