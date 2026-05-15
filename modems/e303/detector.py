@@ -150,6 +150,10 @@ def _ussd_query(mm_index: int, codigo: str, pattern: str) -> str:
             ["mmcli", "-m", str(mm_index), f"--3gpp-ussd-initiate={codigo}"],
             capture_output=True, text=True, timeout=20,
         )
+        # "nao Autorizado" indica número inativo/bloqueado — ignorar
+        if "nao Autorizado" in r.stdout or "não Autorizado" in r.stdout:
+            print(f"[Detector] MM:{mm_index} {codigo} → número não autorizado, ignorando")
+            return ""
         m = re.search(pattern, r.stdout)
         if m:
             return _normalize(m.group(1))
