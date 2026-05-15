@@ -1,10 +1,7 @@
 import json
 import threading
-import time
 from pathlib import Path
 from typing import Optional
-
-_ACTIVATION_TIMEOUT_MIN = 10  # minutos sem SMS → cancela automático
 from modems.base_worker import BaseModemWorker
 from modems.factory import create_workers
 from config import HARDWARE_TYPE, DEVICES
@@ -49,7 +46,6 @@ class ModemPool:
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
         self._recuperar_ativacoes()
-        threading.Thread(target=self._watchdog_ativacoes, daemon=True).start()
 
     def _recuperar_ativacoes(self):
         """
@@ -81,41 +77,6 @@ class ModemPool:
                     print(f"[Pool] Ativação {activation_id} cancelada (modem {modem_id} indisponível)")
         except Exception as e:
             print(f"[Pool] Erro ao recuperar ativações: {e}")
-
-    def _watchdog_ativacoes(self):
-        """Cancela ativações AGUARDANDO há mais de _ACTIVATION_TIMEOUT_MIN minutos."""
-        while True:
-            time.sleep(60)
-            try:
-                from sqlalchemy import text
-                with repo._engine.begin() as conn:
-                    rows = conn.execute(text(
-                        "SELECT id, modem_id FROM ativacoes "
-                        "WHERE status = 'AGUARDANDO' "
-                        "AND criado_em < NOW() - INTERVAL ':min minutes'"
-                        .replace(':min', str(_ACTIVATION_TIMEOUT_MIN))
-                    )).fetchall()
-                    for activation_id, modem_id in rows:
-                        conn.execute(text(
-                            "UPDATE ativacoes SET status = 'CANCELADO' WHERE id = :id"
-                        ), {"id": activation_id})
-                        conn.execute(text(
-                            "UPDATE modems SET status = 'FREE', ativacao_id = NULL WHERE id = :id"
-                        ), {"id": modem_id})
-                        print(f"[Watchdog] Ativação {activation_id} cancelada por timeout")
-                with self.lock:
-                    for w in self.modems.values():
-                        if w.activation_id and w.status == "BUSY":
-                            with repo._engine.connect() as conn:
-                                row = conn.execute(text(
-                                    "SELECT status FROM ativacoes WHERE id = :id"
-                                ), {"id": w.activation_id}).fetchone()
-                                if row and row[0] == "CANCELADO":
-                                    w.activation_id = None
-                                    w.service = None
-                                    w.status = "FREE"
-            except Exception as e:
-                print(f"[Watchdog] erro: {e}")
 
     def stop(self):
         for w in self.modems.values():
