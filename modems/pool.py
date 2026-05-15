@@ -73,6 +73,9 @@ class ModemPool:
                 # Rejeita números cujo prefixo está na lista de exceções
                 if any(w.number.startswith(str(p)) for p in exception_set):
                     continue
+                # Limita 4 usos por número por serviço por dia
+                if self._usos_hoje(w.number, service) >= 4:
+                    continue
                 # ID numérico único via sequência do banco
                 activation_id = str(_next_activation_id())
                 w.reserve(activation_id, service)
@@ -83,6 +86,18 @@ class ModemPool:
                                 f"servico={service} pais={country}")
                 return {"activation_id": activation_id, "number": w.number}
         return None
+
+    def _usos_hoje(self, numero: str, servico: str) -> int:
+        try:
+            from sqlalchemy import text
+            with repo._engine.connect() as conn:
+                return conn.execute(text(
+                    "SELECT COUNT(*) FROM ativacoes "
+                    "WHERE numero = :num AND servico = :svc "
+                    "AND criado_em >= CURRENT_DATE"
+                ), {"num": numero, "svc": servico}).scalar() or 0
+        except Exception:
+            return 0
 
     def _is_verified(self, modem_id: int) -> bool:
         try:
