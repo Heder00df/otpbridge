@@ -164,6 +164,14 @@ async def redescobrir(request: Request):
         import subprocess, re
 
         if forcar:
+            pool = getattr(request.app.state, "modem_pool", None)
+            # Modems ocupados com ativação ativa — não rodar USSD neles
+            busy_mm = set()
+            if pool:
+                for w in pool.modems.values():
+                    if w.status == "BUSY":
+                        busy_mm.add(w.mm_index)
+
             result_usb = subprocess.run(["mmcli", "-L"], capture_output=True, text=True)
             resultados = []
             for line in result_usb.stdout.splitlines():
@@ -171,6 +179,10 @@ async def redescobrir(request: Request):
                 if not m:
                     continue
                 idx = int(m.group(1))
+                if idx in busy_mm:
+                    print(f"[Redescobrir] MM:{idx} BUSY — pulando USSD")
+                    resultados.append({"mm": idx, "number": "busy-skipped"})
+                    continue
                 imei = _get_imei(idx)
                 if not imei:
                     continue
