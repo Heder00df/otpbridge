@@ -45,6 +45,38 @@ class ModemPool:
             )
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
+        self._recuperar_ativacoes()
+
+    def _recuperar_ativacoes(self):
+        """
+        Ao reiniciar, restaura ativações AGUARDANDO/SMS_RECEBIDO nos workers corretos.
+        Evita perder ativações em andamento quando o serviço reinicia.
+        """
+        try:
+            from sqlalchemy import text
+            with repo._engine.connect() as conn:
+                rows = conn.execute(text(
+                    "SELECT id, modem_id, servico FROM ativacoes "
+                    "WHERE status IN ('AGUARDANDO', 'SMS_RECEBIDO') "
+                    "ORDER BY criado_em DESC"
+                )).fetchall()
+
+            for activation_id, modem_id, servico in rows:
+                w = self.modems.get(modem_id)
+                if w and w.is_free():
+                    w.activation_id = str(activation_id)
+                    w.service = servico
+                    w.status = "BUSY"
+                    print(f"[Pool] Ativação {activation_id} restaurada → modem {modem_id}")
+                else:
+                    # Modem não encontrado ou ocupado — cancela a ativação
+                    with repo._engine.begin() as conn:
+                        conn.execute(text(
+                            "UPDATE ativacoes SET status = 'CANCELADO' WHERE id = :id"
+                        ), {"id": activation_id})
+                    print(f"[Pool] Ativação {activation_id} cancelada (modem {modem_id} indisponível)")
+        except Exception as e:
+            print(f"[Pool] Erro ao recuperar ativações: {e}")
 
     def stop(self):
         for w in self.modems.values():
