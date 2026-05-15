@@ -8,7 +8,7 @@ from modems.base_worker import BaseModemWorker
 from otp.extractor import extract_from_sms
 
 _POLL_INTERVAL = 2.0
-_MIN_SIGNAL = 20  # % mínimo para aceitar ativações
+_MIN_SIGNAL = 4  # % mínimo para aceitar ativações
 
 
 class E303Worker(BaseModemWorker):
