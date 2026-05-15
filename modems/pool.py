@@ -48,6 +48,7 @@ class ModemPool:
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
         self._recuperar_ativacoes()
+        threading.Thread(target=self._sync_estado, daemon=True).start()
         threading.Thread(target=self._verificar_numeros_busy, daemon=True).start()
 
     def _recuperar_ativacoes(self):
@@ -80,6 +81,32 @@ class ModemPool:
                     print(f"[Pool] Ativação {activation_id} cancelada (modem {modem_id} indisponível)")
         except Exception as e:
             print(f"[Pool] Erro ao recuperar ativações: {e}")
+
+    def _sync_estado(self):
+        """
+        A cada 60s sincroniza o estado dos workers com o banco.
+        Libera workers BUSY cuja ativação já foi finalizada no banco.
+        Evita precisar reiniciar o serviço para limpar workers presos.
+        """
+        while True:
+            time.sleep(60)
+            try:
+                from sqlalchemy import text
+                with self.lock:
+                    for w in self.modems.values():
+                        if w.status != "BUSY" or not w.activation_id:
+                            continue
+                        with repo._engine.connect() as conn:
+                            row = conn.execute(text(
+                                "SELECT status FROM ativacoes WHERE id = :id"
+                            ), {"id": w.activation_id}).fetchone()
+                        if not row or row[0] in ("CONCLUIDO", "CANCELADO", "REEMBOLSADO"):
+                            print(f"[Sync] Worker {w.modem_id} liberado — ativação {w.activation_id} já finalizada no banco")
+                            w.activation_id = None
+                            w.service = None
+                            w.status = "FREE"
+            except Exception as e:
+                print(f"[Sync] erro: {e}")
 
     def _verificar_numeros_busy(self):
         """
