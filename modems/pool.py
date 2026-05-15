@@ -1,5 +1,7 @@
 import json
+import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 from modems.base_worker import BaseModemWorker
@@ -46,6 +48,7 @@ class ModemPool:
             repo.log_evento("MODEM_ONLINE", modem_id=w.modem_id)
         print(f"[Pool] {len(self.modems)} modem(s) iniciado(s) — hardware: {HARDWARE_TYPE}")
         self._recuperar_ativacoes()
+        threading.Thread(target=self._verificar_numeros_busy, daemon=True).start()
 
     def _recuperar_ativacoes(self):
         """
@@ -77,6 +80,60 @@ class ModemPool:
                     print(f"[Pool] Ativação {activation_id} cancelada (modem {modem_id} indisponível)")
         except Exception as e:
             print(f"[Pool] Erro ao recuperar ativações: {e}")
+
+    def _verificar_numeros_busy(self):
+        """
+        A cada 2 minutos verifica modems BUSY há mais de 10 minutos.
+        Se o número mudou via USSD, cancela a ativação e libera o modem.
+        O SMS nunca chegaria no número errado.
+        """
+        while True:
+            time.sleep(120)
+            try:
+                from sqlalchemy import text
+                from modems.e303.detector import _get_imei, _ussd_all_operators, _ussd_query
+                import re
+
+                with repo._engine.connect() as conn:
+                    rows = conn.execute(text(
+                        "SELECT id, modem_id, numero FROM ativacoes "
+                        "WHERE status = 'AGUARDANDO' "
+                        "AND criado_em < NOW() - INTERVAL '10 minutes'"
+                    )).fetchall()
+
+                for activation_id, modem_id, numero in rows:
+                    w = self.modems.get(modem_id)
+                    if not w or not hasattr(w, 'mm_index'):
+                        continue
+
+                    # Consulta número atual via USSD
+                    subprocess.run(['mmcli', '-m', str(w.mm_index), '--3gpp-ussd-cancel'],
+                                   capture_output=True, timeout=5)
+                    numero_atual = _ussd_query(w.mm_index, "*846#", r"\[(\d{8,13})\]")
+                    if not numero_atual:
+                        continue
+
+                    if not numero_atual.startswith("55"):
+                        numero_atual = "55" + numero_atual
+
+                    if numero_atual != numero:
+                        print(f"[Pool] Número mudou MM:{w.mm_index}: {numero} → {numero_atual} — cancelando ativação {activation_id}")
+                        with repo._engine.begin() as conn:
+                            conn.execute(text(
+                                "UPDATE ativacoes SET status = 'CANCELADO' WHERE id = :id"
+                            ), {"id": activation_id})
+                            conn.execute(text(
+                                "UPDATE modems SET numero = :num, porta_usb = :porta WHERE id = :id"
+                            ), {"num": numero_atual, "porta": f"MM:{w.mm_index}", "id": modem_id})
+                        with self.lock:
+                            w.number = numero_atual
+                            w.activation_id = None
+                            w.service = None
+                            w.status = "FREE"
+                    else:
+                        print(f"[Pool] MM:{w.mm_index} número confirmado: {numero_atual}")
+            except Exception as e:
+                print(f"[Pool] verificar_numeros_busy erro: {e}")
 
     def stop(self):
         for w in self.modems.values():
